@@ -1,0 +1,38 @@
+# Configuración de rúbrica para la Calculadora de Valoración de Informes de Avance
+# Escala por ítem: 0–4  (0=No evidenciado · 1=Bajo · 2=Medio · 3=Alto · 4=Muy alto)
+# weights: ponderación porcentual (suman 100)
+scale:
+  min: 0
+  max: 4
+
+weights:
+  identificacion: 5
+  cronograma: 12
+  objetivos: 15
+  metodologia: 15
+  resultados: 15
+  formacion: 8
+  gestion: 8
+  dificultades: 7
+  difusion: 7
+  calidad_formal: 4
+  impacto: 4
+
+thresholds:
+  aprobado: 70
+  aprobado_obs: 50
+
+# Palabras/indicios (muy básicos) por criterio para el análisis automático inicial
+# Se usa una lógica AND/OR simple. Puedes expandir en app.py
+keywords:
+  identificacion: ["unidad académica", "director", "equipo", "resolución", "denominación", "código"]
+  cronograma: ["cronograma", "etapa", "seman", "mes", "plan de trabajo"]
+  objetivos: ["objetivo general", "objetivos específicos", "grado de cumplimiento"]
+  metodologia: ["metodolog", "diseño", "instrumento", "muestra", "atlas.ti", "spss", "entrevista", "encuesta", "observación"]
+  resultados: ["resultados", "descriptivos", "tabla", "figura", "análisis", "estadístico", "temático"]
+  formacion: ["capacitación", "formación", "estudiante", "tesista", "becari", "recursos humanos"]
+  gestion: ["reunione", "coordinación", "bitácora", "seguimiento", "distribución de tareas"]
+  dificultades: ["dificultad", "limitación", "problema", "riesgo", "mitigación"]
+  difusion: ["congreso", "jornada", "publicación", "artículo", "ponencia", "transferencia"]
+  calidad_formal: ["bibliografía", "referencia", "formato", "plantilla", "ortografía"]
+  impacto: ["impacto", "transferencia", "aplicación", "beneficio", "política pública", "comunidad"]
