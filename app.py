@@ -5,19 +5,16 @@ import pandas as pd
 from docx import Document as DocxDocument
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-# ===================== Dependencias PDF (opcional) =====================
 try:
     import pdfplumber
     HAVE_PDF = True
 except Exception:
     HAVE_PDF = False
 
-# ===================== Config general =====================
 st.set_page_config(page_title="Valorador de Informes de Avance", layout="wide")
 st.title("Valorador de Informes de Avance — UCCuyo")
-st.caption("Carga .docx o .pdf, valora según criterios y exporta Excel/Word (sin recortar el dictamen).")
+st.caption("Carga .docx o .pdf, valora y exporta Excel/Word (sin recortar dictamen).")
 
-# ===================== Utilidades =====================
 @st.cache_data
 def load_json_default(path: str, default: dict):
     try:
@@ -49,9 +46,8 @@ def match_count(pattern, text):
 def clip(v, cap):
     return min(v, cap) if cap else v
 
-# ===================== FIX de exportación Word (sin truncados) =====================
+# ---------- FIX Word (dictamen completo) ----------
 def add_full_text(doc, text: str):
-    """Escribe texto completo preservando párrafos y saltos de línea (sin '...')."""
     if not text:
         return
     text = text.replace("\\r\\n", "\\n").replace("\\r", "\\n")
@@ -59,10 +55,9 @@ def add_full_text(doc, text: str):
     for block in blocks:
         for line in block.split("\\n"):
             doc.add_paragraph(line)
-        doc.add_paragraph("")  # separación entre bloques
+        doc.add_paragraph("")
 
 def export_word_dictamen(section_results: dict, total_general: float, dictamen_texto: str, decision: str) -> bytes:
-    """Genera el Word final del dictamen sin recortes."""
     from docx import Document
     doc = Document()
     p = doc.add_paragraph("Universidad Católica de Cuyo — Secretaría de Investigación")
@@ -96,37 +91,37 @@ def export_word_dictamen(section_results: dict, total_general: float, dictamen_t
     doc.save(bio)
     return bio.getvalue()
 
-# ===================== Criterios por defecto =====================
+# ---------- Criterios por defecto (pueden sobreescribirse con criteria_avance.json) ----------
 DEFAULT_CRITERIA = {
     "sections": {
-        "Avances de cronograma": {
+        "Avances de cronograma: seguimiento/ajustes": {
             "max_points": 200,
             "items": {
                 "Hitos cumplidos": {"pattern": r"(?i)hitos? cumplid", "unit_points": 10, "max_points": 100},
                 "Cronograma ajustado": {"pattern": r"(?i)cronograma.*ajust", "unit_points": 10, "max_points": 100}
             }
         },
-        "Producción parcial": {
+        "Producción parcial (borradores/ponencias)": {
             "max_points": 200,
             "items": {
                 "Borradores/Manuscritos": {"pattern": r"(?i)(borrador|manuscrito)", "unit_points": 20, "max_points": 100},
                 "Ponencias/Resúmenes": {"pattern": r"(?i)(ponenc|resumen ampliado)", "unit_points": 10, "max_points": 100}
             }
         },
-        "Gestión y equipo": {
+        "Gestión y equipo [reuniones/tesistas]": {
             "max_points": 200,
             "items": {
                 "Reuniones de equipo": {"pattern": r"(?i)reuniones? de equipo", "unit_points": 10, "max_points": 100},
                 "Formación de tesistas/becarios": {"pattern": r"(?i)(tesistas?|becari)", "unit_points": 10, "max_points": 100}
             }
         },
-        "Vinculación/Extensión": {
+        "Vinculación / Extensión": {
             "max_points": 100,
             "items": {
                 "Actividades de extensión": {"pattern": r"(?i)extensi[oó]n|vinculaci[oó]n", "unit_points": 20, "max_points": 100}
             }
         },
-        "Ejecución presupuestaria": {
+        "Ejecución presupuestaria (uso de partidas)": {
             "max_points": 100,
             "items": {
                 "Uso de partidas": {"pattern": r"(?i)(partidas?|rendici[oó]n)", "unit_points": 20, "max_points": 100}
@@ -134,10 +129,24 @@ DEFAULT_CRITERIA = {
         }
     }
 }
-
 criteria = load_json_default("criteria_avance.json", DEFAULT_CRITERIA)
 
-# ===================== UI: carga de archivo =====================
+# ---------- Utilidad: nombre seguro de hoja de Excel ----------
+INVALID_EXCEL_CHARS = r'[:\\\/\?\*\[\]]'
+def safe_sheet_name(name: str, used: set) -> str:
+    # limpiar inválidos y recortar
+    cleaned = re.sub(INVALID_EXCEL_CHARS, " ", name).strip() or "Hoja"
+    cleaned = cleaned[:31]
+    base = cleaned
+    i = 1
+    while cleaned in used or cleaned == "RESUMEN":
+        suffix = f"_{i}"
+        cleaned = (base[:31 - len(suffix)] + suffix) if len(base) + len(suffix) > 31 else (base + suffix)
+        i += 1
+    used.add(cleaned)
+    return cleaned
+
+# ===================== UI =====================
 col1, col2 = st.columns([2,1])
 with col1:
     file = st.file_uploader("Subí el Informe de Avance (.docx o .pdf)", type=["docx", "pdf"])
@@ -158,7 +167,6 @@ if file:
     with st.expander("Ver texto extraído (debug)"):
         st.text_area("Texto del informe", raw_text, height=220)
 
-    # ===================== Valoración =====================
     section_results = {}
     total_general = 0.0
 
@@ -183,15 +191,16 @@ if file:
     st.metric("Total acumulado", f"{total_general:.1f}")
     st.metric("Resultado", decision)
 
-    # ===================== Exportaciones =====================
     st.markdown("---")
     st.subheader("Exportar resultados")
 
-    # Excel
+    # ---------- Excel con nombres de hoja seguros ----------
     out_xlsx = io.BytesIO()
+    used_names = set()
     with pd.ExcelWriter(out_xlsx, engine="xlsxwriter") as writer:
         for sec, data in section_results.items():
-            data["df"].to_excel(writer, sheet_name=sec[:31], index=False)
+            sheet = safe_sheet_name(sec, used_names)
+            data["df"].to_excel(writer, sheet_name=sheet, index=False)
         resumen = pd.DataFrame({
             "Sección": list(section_results.keys()),
             "Subtotal": [section_results[s]["subtotal"] for s in section_results]
@@ -208,7 +217,6 @@ if file:
         use_container_width=True
     )
 
-    # Word (con FIX sin truncados)
     st.download_button(
         "Descargar informe Word",
         data=export_word_dictamen(section_results, total_general, dictamen_texto, decision),
