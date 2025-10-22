@@ -1,228 +1,210 @@
 
+import io, re, yaml, math, pdfplumber
 import streamlit as st
-import re, json, io
 import pandas as pd
-from docx import Document as DocxDocument
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+import numpy as np
+from docx import Document
+from docx.shared import Pt
+from datetime import datetime
 
-try:
-    import pdfplumber
-    HAVE_PDF = True
-except Exception:
-    HAVE_PDF = False
+# =========================
+# Config
+# =========================
+st.set_page_config(
+    page_title="UCCuyo · Valorador de Informes de Avance",
+    page_icon="📊",
+    layout="wide"
+)
 
-st.set_page_config(page_title="Valorador de Informes de Avance", layout="wide")
-st.title("Valorador de Informes de Avance — UCCuyo")
-st.caption("Carga .docx o .pdf, valora y exporta Excel/Word (sin recortar dictamen).")
+@st.cache_resource
+def load_rubric():
+    with open("rubric_config.yaml", "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
-@st.cache_data
-def load_json_default(path: str, default: dict):
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return default
+RUBRIC = load_rubric()
+CRITERIA = [
+    ("identificacion", "Identificación general del proyecto"),
+    ("cronograma", "Cumplimiento del cronograma"),
+    ("objetivos", "Grado de cumplimiento de los objetivos"),
+    ("metodologia", "Metodología"),
+    ("resultados", "Resultados parciales"),
+    ("formacion", "Formación de recursos humanos"),
+    ("gestion", "Gestión del proyecto"),
+    ("dificultades", "Dificultades y estrategias"),
+    ("difusion", "Difusión y transferencia"),
+    ("calidad_formal", "Calidad formal del informe"),
+    ("impacto", "Impacto y proyección"),
+]
 
-def extract_text_docx(file):
-    doc = DocxDocument(file)
-    text = "\\n".join(p.text for p in doc.paragraphs)
-    for t in doc.tables:
-        for row in t.rows:
-            text += "\\n" + " | ".join(c.text for c in row.cells)
-    return text
+# =========================
+# Utilidades
+# =========================
+def extract_text_from_docx(file_bytes: bytes) -> str:
+    buffer = io.BytesIO(file_bytes)
+    doc = Document(buffer)
+    return "\n".join([p.text for p in doc.paragraphs])
 
-def extract_text_pdf(file):
-    if not HAVE_PDF:
-        raise RuntimeError("Para leer PDF instalá: pip install pdfplumber")
-    chunks = []
-    with pdfplumber.open(file) as pdf:
-        for p in pdf.pages:
-            chunks.append(p.extract_text() or "")
-    return "\\n".join(chunks)
+def extract_text_from_pdf(file_bytes: bytes) -> str:
+    buffer = io.BytesIO(file_bytes)
+    text_parts = []
+    with pdfplumber.open(buffer) as pdf:
+        for page in pdf.pages:
+            text_parts.append(page.extract_text() or "")
+    return "\n".join(text_parts)
 
-def match_count(pattern, text):
-    return len(re.findall(pattern, text, re.IGNORECASE)) if pattern else 0
+def naive_auto_score(text: str, key: str) -> int:
+    """
+    Heurística simple: cuenta coincidencias de palabras clave por criterio.
+    0=sin evidencia, 1=baja, 2=media, 3=alta, 4=muy alta
+    """
+    words = RUBRIC.get("keywords", {}).get(key, [])
+    score = 0
+    hits = 0
+    lower = text.lower()
+    for w in words:
+        if w.lower() in lower:
+            hits += 1
+    # Escalamos por proporción de aciertos respecto a len(words)
+    if not words:
+        return 0
+    ratio = hits / len(words)
+    if ratio == 0:
+        score = 0
+    elif ratio < 0.25:
+        score = 1
+    elif ratio < 0.5:
+        score = 2
+    elif ratio < 0.75:
+        score = 3
+    else:
+        score = 4
+    return score
 
-def clip(v, cap):
-    return min(v, cap) if cap else v
+def weighted_total(scores: dict) -> float:
+    weights = RUBRIC["weights"]
+    total = 0.0
+    for k, v in scores.items():
+        w = weights.get(k, 0)
+        total += (v / RUBRIC["scale"]["max"]) * w
+    return round(total, 2)
 
-# ---------- FIX Word (dictamen completo) ----------
-def add_full_text(doc, text: str):
-    if not text:
-        return
-    text = text.replace("\\r\\n", "\\n").replace("\\r", "\\n")
-    blocks = text.split("\\n\\n")
-    for block in blocks:
-        for line in block.split("\\n"):
-            doc.add_paragraph(line)
-        doc.add_paragraph("")
+def decision(final_pct: float) -> str:
+    th = RUBRIC["thresholds"]
+    if final_pct >= th["aprobado"]:
+        return "APROBADO"
+    elif final_pct >= th["aprobado_obs"]:
+        return "APROBADO CON OBSERVACIONES"
+    else:
+        return "NO APROBADO"
 
-def export_word_dictamen(section_results: dict, total_general: float, dictamen_texto: str, decision: str) -> bytes:
-    from docx import Document
+def make_excel(scores: dict, final_pct: float, label: str) -> bytes:
+    weights = RUBRIC["weights"]
+    df = pd.DataFrame([{
+        "Criterio": name,
+        "Clave": key,
+        "Puntaje (0-4)": scores[key],
+        "Peso (%)": weights.get(key, 0),
+        "Aporte (%)": round((scores[key]/RUBRIC["scale"]["max"])*weights.get(key,0), 2)
+    } for key, name in CRITERIA])
+    df_total = pd.DataFrame([{"Total (%)": final_pct, "Dictamen": label}])
+    with io.BytesIO() as output:
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, sheet_name="Resultados")
+            df_total.to_excel(writer, index=False, sheet_name="Resumen")
+        return output.getvalue()
+
+def make_word(scores: dict, final_pct: float, label: str, raw_text: str) -> bytes:
+    weights = RUBRIC["weights"]
     doc = Document()
-    p = doc.add_paragraph("Universidad Católica de Cuyo — Secretaría de Investigación")
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    doc.add_paragraph("Informe de valoración — Informe de Avance").alignment = WD_ALIGN_PARAGRAPH.CENTER
+    styles = doc.styles['Normal']
+    styles.font.name = 'Times New Roman'
+    styles.font.size = Pt(11)
+
+    doc.add_heading('UCCuyo – Valoración de Informe de Avance', level=1)
+    today = datetime.now().strftime("%Y-%m-%d %H:%M")
+    doc.add_paragraph(f"Fecha: {today}")
+    doc.add_paragraph(f"Dictamen: {label}  —  Cumplimiento: {final_pct}%")
     doc.add_paragraph("")
-    doc.add_paragraph(f"Resultado: {decision}")
-    doc.add_paragraph(f"Puntaje total: {total_general:.1f}")
+    doc.add_heading('Resultados por criterio', level=2)
+
+    for key, name in CRITERIA:
+        s = scores[key]
+        w = weights.get(key, 0)
+        aporte = round((s/RUBRIC['scale']['max'])*w, 2)
+        p = doc.add_paragraph()
+        p.add_run(f"{name} ").bold = True
+        p.add_run(f"(Puntaje: {s}/4 · Peso: {w}% · Aporte: {aporte}%)")
+
     doc.add_paragraph("")
+    doc.add_heading('Interpretación', level=2)
+    # Generar una interpretación breve automática
+    fortalezas = [name for key, name in CRITERIA if scores[key] >= 3]
+    mejoras = [name for key, name in CRITERIA if scores[key] <= 1]
+    doc.add_paragraph("Fortalezas: " + (", ".join(fortalezas) if fortalezas else "no se identifican fortalezas destacadas."))
+    doc.add_paragraph("Aspectos a mejorar: " + (", ".join(mejoras) if mejoras else "no se identifican aspectos críticos."))
 
-    doc.add_heading("Dictamen", level=2)
-    add_full_text(doc, dictamen_texto)
+    doc.add_paragraph("")
+    doc.add_heading('Evidencia analizada (extracto)', level=2)
+    excerpt = (raw_text[:2500] + "...") if len(raw_text) > 2500 else raw_text
+    doc.add_paragraph(excerpt)
 
-    for sec, data in section_results.items():
-        doc.add_heading(sec, level=3)
-        df = data.get("df", pd.DataFrame())
-        if df.empty:
-            doc.add_paragraph("Sin ítems detectados.")
-        else:
-            table = doc.add_table(rows=1, cols=len(df.columns))
-            hdr = table.rows[0].cells
-            for i, c in enumerate(df.columns):
-                hdr[i].text = str(c)
-            for _, row in df.iterrows():
-                cells = table.add_row().cells
-                for i, c in enumerate(df.columns):
-                    cells[i].text = str(row[c])
-        doc.add_paragraph(f"Subtotal sección: {data.get('subtotal', 0):.1f}")
+    with io.BytesIO() as buffer:
+        doc.save(buffer)
+        return buffer.getvalue()
 
-    bio = io.BytesIO()
-    doc.save(bio)
-    return bio.getvalue()
+# =========================
+# UI
+# =========================
+st.markdown("## 📊 Valorador de Informes de Avance")
+st.write("Subí un **PDF o DOCX** del informe de avance. La app extrae el texto, propone un puntaje automático por 11 criterios y te permite **ajustarlos manualmente** antes de exportar los resultados.")
 
-# ---------- Criterios por defecto (pueden sobreescribirse con criteria_avance.json) ----------
-DEFAULT_CRITERIA = {
-    "sections": {
-        "Avances de cronograma: seguimiento/ajustes": {
-            "max_points": 200,
-            "items": {
-                "Hitos cumplidos": {"pattern": r"(?i)hitos? cumplid", "unit_points": 10, "max_points": 100},
-                "Cronograma ajustado": {"pattern": r"(?i)cronograma.*ajust", "unit_points": 10, "max_points": 100}
-            }
-        },
-        "Producción parcial (borradores/ponencias)": {
-            "max_points": 200,
-            "items": {
-                "Borradores/Manuscritos": {"pattern": r"(?i)(borrador|manuscrito)", "unit_points": 20, "max_points": 100},
-                "Ponencias/Resúmenes": {"pattern": r"(?i)(ponenc|resumen ampliado)", "unit_points": 10, "max_points": 100}
-            }
-        },
-        "Gestión y equipo [reuniones/tesistas]": {
-            "max_points": 200,
-            "items": {
-                "Reuniones de equipo": {"pattern": r"(?i)reuniones? de equipo", "unit_points": 10, "max_points": 100},
-                "Formación de tesistas/becarios": {"pattern": r"(?i)(tesistas?|becari)", "unit_points": 10, "max_points": 100}
-            }
-        },
-        "Vinculación / Extensión": {
-            "max_points": 100,
-            "items": {
-                "Actividades de extensión": {"pattern": r"(?i)extensi[oó]n|vinculaci[oó]n", "unit_points": 20, "max_points": 100}
-            }
-        },
-        "Ejecución presupuestaria (uso de partidas)": {
-            "max_points": 100,
-            "items": {
-                "Uso de partidas": {"pattern": r"(?i)(partidas?|rendici[oó]n)", "unit_points": 20, "max_points": 100}
-            }
-        }
-    }
-}
-criteria = load_json_default("criteria_avance.json", DEFAULT_CRITERIA)
+uploaded = st.file_uploader("Cargar archivo (PDF o DOCX)", type=["pdf", "docx"])
 
-# ---------- Utilidad: nombre seguro de hoja de Excel ----------
-INVALID_EXCEL_CHARS = r'[:\\\/\?\*\[\]]'
-def safe_sheet_name(name: str, used: set) -> str:
-    # limpiar inválidos y recortar
-    cleaned = re.sub(INVALID_EXCEL_CHARS, " ", name).strip() or "Hoja"
-    cleaned = cleaned[:31]
-    base = cleaned
-    i = 1
-    while cleaned in used or cleaned == "RESUMEN":
-        suffix = f"_{i}"
-        cleaned = (base[:31 - len(suffix)] + suffix) if len(base) + len(suffix) > 31 else (base + suffix)
-        i += 1
-    used.add(cleaned)
-    return cleaned
+raw_text = ""
+if uploaded is not None:
+    data = uploaded.read()
+    if uploaded.name.lower().endswith(".docx"):
+        raw_text = extract_text_from_docx(data)
+    else:
+        raw_text = extract_text_from_pdf(data)
 
-# ===================== UI =====================
-col1, col2 = st.columns([2,1])
-with col1:
-    file = st.file_uploader("Subí el Informe de Avance (.docx o .pdf)", type=["docx", "pdf"])
-with col2:
-    decision = st.selectbox("Resultado", ["Aprobado", "Aprobado con observaciones", "No aprobado"])
+    with st.expander("📄 Texto extraído (vista previa)"):
+        st.text_area("Contenido", raw_text[:6000], height=280)
 
-dictamen_texto = st.text_area("Dictamen (podés editarlo antes de exportar)", height=160, placeholder="Escribí aquí el dictamen final…")
+    st.divider()
+    st.subheader("Evaluación automática + ajuste manual")
 
-if file:
-    ext = (file.name.split(".")[-1] or "").lower()
-    try:
-        raw_text = extract_text_docx(file) if ext == "docx" else extract_text_pdf(file)
-    except Exception as e:
-        st.error(str(e))
-        st.stop()
+    cols = st.columns(3)
+    auto_scores = {}
+    for idx, (key, name) in enumerate(CRITERIA):
+        if idx % 3 == 0:
+            cols = st.columns(3)
+        col = cols[idx % 3]
+        with col:
+            auto = naive_auto_score(raw_text, key)
+            auto_scores[key] = auto
 
-    st.success(f"Archivo cargado: {file.name}")
-    with st.expander("Ver texto extraído (debug)"):
-        st.text_area("Texto del informe", raw_text, height=220)
+    st.write("**Sugerencia automática (0–4)**:", auto_scores)
 
-    section_results = {}
-    total_general = 0.0
+    st.markdown("### Ajustar puntajes (0–4)")
+    scores = {}
+    for key, name in CRITERIA:
+        scores[key] = st.slider(name, min_value=0, max_value=4, value=int(auto_scores.get(key,0)))
 
-    for section, cfg in criteria["sections"].items():
-        st.markdown(f"### {section}")
-        rows = []
-        subtotal_items = 0.0
-        for item, icfg in cfg.get("items", {}).items():
-            c = match_count(icfg.get("pattern", ""), raw_text)
-            pts = clip(c * icfg.get("unit_points", 0), icfg.get("max_points", 0))
-            rows.append({"Ítem": item, "Ocurrencias": c, "Puntaje (tope ítem)": pts, "Tope ítem": icfg.get("max_points", 0)})
-            subtotal_items += pts
-        df = pd.DataFrame(rows)
-        subtotal = clip(subtotal_items, cfg.get("max_points", 0))
-        st.dataframe(df, use_container_width=True)
-        st.info(f"Subtotal {section}: {subtotal} / máx {cfg.get('max_points', 0)}")
-        section_results[section] = {"df": df, "subtotal": subtotal}
-        total_general += subtotal
+    final_pct = weighted_total(scores)
+    label = decision(final_pct)
+    st.markdown(f"### Resultado: **{label}** — Cumplimiento **{final_pct}%**")
 
-    st.markdown("---")
-    st.subheader("Puntaje total")
-    st.metric("Total acumulado", f"{total_general:.1f}")
-    st.metric("Resultado", decision)
-
-    st.markdown("---")
-    st.subheader("Exportar resultados")
-
-    # ---------- Excel con nombres de hoja seguros ----------
-    out_xlsx = io.BytesIO()
-    used_names = set()
-    with pd.ExcelWriter(out_xlsx, engine="xlsxwriter") as writer:
-        for sec, data in section_results.items():
-            sheet = safe_sheet_name(sec, used_names)
-            data["df"].to_excel(writer, sheet_name=sheet, index=False)
-        resumen = pd.DataFrame({
-            "Sección": list(section_results.keys()),
-            "Subtotal": [section_results[s]["subtotal"] for s in section_results]
-        })
-        resumen.loc[len(resumen)] = ["TOTAL", resumen["Subtotal"].sum()]
-        resumen.loc[len(resumen)] = ["RESULTADO", decision]
-        resumen.to_excel(writer, sheet_name="RESUMEN", index=False)
-
-    st.download_button(
-        "Descargar Excel",
-        data=out_xlsx.getvalue(),
-        file_name="valoracion_informe_avance.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
-    )
-
-    st.download_button(
-        "Descargar informe Word",
-        data=export_word_dictamen(section_results, total_general, dictamen_texto, decision),
-        file_name="informe_valoracion_avance.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        use_container_width=True
-    )
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("⬇️ Exportar Excel"):
+            xls = make_excel(scores, final_pct, label)
+            st.download_button("Descargar resultados.xlsx", data=xls, file_name="valoracion_informe_avance.xlsx")
+    with c2:
+        if st.button("⬇️ Exportar Word"):
+            docx_bytes = make_word(scores, final_pct, label, raw_text)
+            st.download_button("Descargar dictamen.docx", data=docx_bytes, file_name="dictamen_informe_avance.docx")
+    with c3:
+        st.download_button("Descargar configuración (YAML)", data=open("rubric_config.yaml","rb").read(), file_name="rubric_config.yaml")
 else:
-    st.info("Subí el Informe de Avance para valorar y exportar.")
+    st.info("Esperando archivo...")
