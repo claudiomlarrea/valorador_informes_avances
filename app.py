@@ -4,10 +4,11 @@ import io, re, json, datetime
 import pandas as pd
 from docx import Document as DocxDocument
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Cm
 from docx import Document
 import yaml
 
-# --------- PDF opcional ---------
+# --------- PDF opcional (no afecta puntajes) ---------
 try:
     import pdfplumber
     HAVE_PDF = True
@@ -16,7 +17,7 @@ except Exception:
 
 st.set_page_config(page_title="Valorador de Informes de Avance", layout="wide")
 st.title("Valorador de Informes de Avance — UCCuyo")
-st.caption("Calcula 11 criterios ponderados y exporta Excel + Word (sin recortar texto).")
+st.caption("Se conservan rúbrica y umbrales del proyecto. Exportación Word sin truncados, con sangría y justificado.")
 
 # --------- Config ---------
 @st.cache_data
@@ -25,16 +26,15 @@ def load_yaml(path):
         return yaml.safe_load(f)
 
 cfg = load_yaml("rubric_config.yaml")
-WEIGHTS = cfg.get("weights", {})
 SCALE = cfg.get("scale", {"min": 0, "max": 4})
-KEYWORDS = cfg.get("keywords", {})
+WEIGHTS = cfg.get("weights", {})
 TH = cfg.get("thresholds", {"aprobado": 70, "aprobado_obs": 50})
+KEYWORDS = cfg.get("keywords", {})  # solo informativo (no altera puntaje)
 
 CRITERIA_ORDER = [
     "identificacion","cronograma","objetivos","metodologia","resultados",
     "formacion","gestion","dificultades","difusion","calidad_formal","impacto"
 ]
-
 NAMES = {
     "identificacion": "Identificación general del proyecto",
     "cronograma": "Cumplimiento del cronograma",
@@ -52,10 +52,10 @@ NAMES = {
 # --------- Utilidades extracción ---------
 def extract_text_docx(file):
     doc = DocxDocument(file)
-    text = "\n".join(p.text for p in doc.paragraphs)
+    text = "\\n".join(p.text for p in doc.paragraphs)
     for t in doc.tables:
         for row in t.rows:
-            text += "\n" + " | ".join(c.text for c in row.cells)
+            text += "\\n" + " | ".join(c.text for c in row.cells)
     return text
 
 def extract_text_pdf(file):
@@ -65,19 +65,7 @@ def extract_text_pdf(file):
     with pdfplumber.open(file) as pdf:
         for p in pdf.pages:
             chunks.append(p.extract_text() or "")
-    return "\n".join(chunks)
-
-def auto_score(text, keywords, scale_max=4):
-    text_low = text.lower()
-    hits = 0
-    for kw in keywords:
-        if kw.lower() in text_low:
-            hits += 1
-    # mapa simple: 0 = 0; 1 = 2; 2+ = 3/4
-    if hits == 0: return 0
-    if hits == 1: return 2
-    if hits == 2: return 3
-    return min(scale_max, 4)
+    return "\\n".join(chunks)
 
 def decision_from(total_pct, th_ok, th_obs):
     if total_pct >= th_ok: return "APROBADO"
@@ -86,7 +74,6 @@ def decision_from(total_pct, th_ok, th_obs):
 
 INVALID_EXCEL_CHARS = r'[:\\\/\?\*\[\]]'
 def safe_sheet_name(name: str, used: set) -> str:
-    import re
     cleaned = re.sub(INVALID_EXCEL_CHARS, " ", name).strip() or "Hoja"
     cleaned = cleaned[:31]
     base = cleaned
@@ -95,50 +82,45 @@ def safe_sheet_name(name: str, used: set) -> str:
         suffix = f"_{i}"
         cleaned = (base[:31-len(suffix)] + suffix)
         i += 1
-    used.add(cleaned)
-    return cleaned
+    used.add(cleaned); return cleaned
 
 # --------- UI ---------
 col1, col2 = st.columns([2,1])
 with col1:
-    up = st.file_uploader("Subí el Informe de Avance (.docx o .pdf)", type=["docx","pdf"])
+    up = st.file_uploader("Informe de Avance (.docx o .pdf)", type=["docx","pdf"])
 with col2:
-    st.write("Escala de cada criterio: 0–4")
-    st.write("Pesos configurables en rubric_config.yaml")
+    st.write("Escala 0–4 (manual). Pesos en rubric_config.yaml")
 
-dictamen_texto = st.text_area("Dictamen (podés editarlo antes de exportar)", height=160, placeholder="Escribí aquí el dictamen final…")
+dictamen_texto = st.text_area("Dictamen (se respeta formato en Word)", height=180, placeholder="Pegá o escribí el dictamen aquí…")
 
 if up:
     ext = (up.name.split(".")[-1] or "").lower()
     try:
-        text = extract_text_docx(up) if ext == "docx" else extract_text_pdf(up)
+        texto_informe = extract_text_docx(up) if ext == "docx" else extract_text_pdf(up)
     except Exception as e:
-        st.error(str(e))
-        st.stop()
+        st.error(str(e)); st.stop()
 
-    st.success(f"Archivo cargado: {up.name}")
-    with st.expander("Ver texto extraído (debug)"):
-        st.text_area("Texto", text, height=200)
+    with st.expander("Ver texto extraído (solo referencia)"):
+        st.text_area("Texto", texto_informe, height=220)
 
-    # Autovaloración + ajustes manuales
+    # --------- Valoración (manual, SIN auto-asignación) ---------
     data = []
     total_pct = 0.0
-    sliders = {}
     for key in CRITERIA_ORDER:
         section = NAMES[key]
         w = WEIGHTS.get(key, 0)
-        kws = KEYWORDS.get(key, [])
-        auto = auto_score(text, kws, SCALE.get("max",4))
-        sliders[key] = st.slider(f"{section} (peso {w}%)", min_value=SCALE.get("min",0), max_value=SCALE.get("max",4),
-                                 value=int(auto), step=1)
-        contrib = sliders[key] / SCALE.get("max",4) * w
-        total_pct += contrib
-        data.append({"Criterio": section, "Puntaje (0-4)": sliders[key], "Peso (%)": w, "Aporte (%)": round(contrib,2)})
-
+        # sugerencia (no vinculante) por cantidad de keywords encontradas
+        sugerencia = sum(1 for kw in KEYWORDS.get(key, []) if kw.lower() in texto_informe.lower())
+        help_txt = f"Sugerencia orientativa por palabras clave: {min(sugerencia, SCALE.get('max',4))}/4 (no afecta el puntaje)."
+        val = st.slider(f"{section} (peso {w}%)", min_value=SCALE.get("min",0), max_value=SCALE.get("max",4), value=0, step=1, help=help_txt)
+        aporte = (val / SCALE.get("max",4)) * w if w else 0.0
+        total_pct += aporte
+        data.append({"Criterio": section, "Puntaje (0-4)": val, "Peso (%)": w, "Aporte (%)": round(aporte,2)})
     df = pd.DataFrame(data)
     st.dataframe(df, use_container_width=True)
-    st.info(f"Cumplimiento: {round(total_pct,2)}%")
 
+    st.subheader("Resultado")
+    st.metric("Cumplimiento", f"{round(total_pct,1)}%")
     dec = decision_from(total_pct, TH.get("aprobado",70), TH.get("aprobado_obs",50))
     st.metric("Dictamen", dec)
 
@@ -146,8 +128,7 @@ if up:
     out_xlsx = io.BytesIO()
     with pd.ExcelWriter(out_xlsx, engine="xlsxwriter") as writer:
         used = set()
-        sheet = safe_sheet_name("Valoración", used)
-        df.to_excel(writer, sheet_name=sheet, index=False)
+        df.to_excel(writer, sheet_name=safe_sheet_name("Valoración", used), index=False)
         resumen = pd.DataFrame({
             "Sección": df["Criterio"],
             "Puntaje (0-4)": df["Puntaje (0-4)"],
@@ -156,47 +137,52 @@ if up:
         })
         resumen.loc[len(resumen)] = ["TOTAL", "", "", round(resumen["Aporte (%)"].astype(float).sum(),2)]
         resumen.to_excel(writer, sheet_name="RESUMEN", index=False)
-    st.download_button("Descargar Excel", out_xlsx.getvalue(),
-        file_name="valoracion_informe_avance.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True)
 
-    # --------- Exportar Word (SIN recortar texto) ---------
-    def add_full_text(doc, text: str):
+    st.download_button("Descargar Excel", out_xlsx.getvalue(),
+                       file_name="valoracion_informe_avance.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                       use_container_width=True)
+
+    # --------- Exportar Word (sin truncado + sangría y justificado) ---------
+    def add_blocks_as_paragraphs(doc, text, indent_cm=0.75):
         if not text: return
         text = text.replace("\r\n","\n").replace("\r","\n")
-        blocks = text.split("\n\n")
+        blocks = [b.strip() for b in text.split("\n\n") if b.strip()]
         for block in blocks:
-            for line in block.split("\n"):
-                doc.add_paragraph(line)
-            doc.add_paragraph("")
+            # unimos líneas internas del pegado para no cortar párrafos
+            paragraph = block.replace("\n", " ").strip()
+            p = doc.add_paragraph(paragraph)
+            p.paragraph_format.first_line_indent = Cm(indent_cm)
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
     def export_word():
         d = Document()
-        p = d.add_paragraph("UCCuyo – Valoración de Informe de Avance")
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        header = d.add_paragraph("UCCuyo – Valoración de Informe de Avance")
+        header.alignment = WD_ALIGN_PARAGRAPH.CENTER
         d.add_paragraph(f"Fecha: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}").alignment = WD_ALIGN_PARAGRAPH.CENTER
         d.add_paragraph("")
         d.add_paragraph(f"Dictamen: {dec}  —  Cumplimiento: {round(total_pct,1)}%")
         d.add_paragraph("")
+
         d.add_paragraph("Resultados por criterio")
         for _, row in df.iterrows():
-            d.add_paragraph(f"{row['Criterio']} (Puntaje: {row['Puntaje (0-4)']}/4 · Peso: {row['Peso (%)']}% · Aporte: {row['Aporte (%)']}%)")
+            p = d.add_paragraph(f"{row['Criterio']} (Puntaje: {row['Puntaje (0-4)']}/4 · Peso: {row['Peso (%)']}% · Aporte: {row['Aporte (%)']}%)")
+            p.paragraph_format.first_line_indent = Cm(0.75)
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+
         d.add_paragraph("")
         d.add_paragraph("Interpretación")
-        # escribir el dictamen COMPLETO que el evaluador editó (sin 'shorten', sin '...')
-        add_full_text(d, dictamen_texto)
+        add_blocks_as_paragraphs(d, dictamen_texto, indent_cm=0.75)
+
         d.add_paragraph("")
         d.add_paragraph("Evidencia analizada (extracto)")
-        # incluimos el texto completo o un extracto largo sin añadir '...'
-        add_full_text(d, text)
-        bio = io.BytesIO()
-        d.save(bio)
-        return bio.getvalue()
+        add_blocks_as_paragraphs(d, texto_informe, indent_cm=0.75)
+
+        bio = io.BytesIO(); d.save(bio); return bio.getvalue()
 
     st.download_button("Descargar Word", export_word(),
-        file_name="dictamen_informe_avance.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        use_container_width=True)
+                       file_name="dictamen_informe_avance.docx",
+                       mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                       use_container_width=True)
 else:
     st.info("Subí el informe para valorar y exportar.")
