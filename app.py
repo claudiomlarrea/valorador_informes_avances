@@ -52,12 +52,8 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
     return "\n".join(text_parts)
 
 def naive_auto_score(text: str, key: str) -> int:
-    """
-    Heurística simple: cuenta coincidencias de palabras clave por criterio.
-    0=sin evidencia, 1=baja, 2=media, 3=alta, 4=muy alta
-    """
+    """Heurística simple: cuenta coincidencias de palabras clave por criterio."""
     words = RUBRIC.get("keywords", {}).get(key, [])
-    score = 0
     hits = 0
     lower = text.lower()
     for w in words:
@@ -67,16 +63,15 @@ def naive_auto_score(text: str, key: str) -> int:
         return 0
     ratio = hits / len(words)
     if ratio == 0:
-        score = 0
+        return 0
     elif ratio < 0.25:
-        score = 1
+        return 1
     elif ratio < 0.5:
-        score = 2
+        return 2
     elif ratio < 0.75:
-        score = 3
+        return 3
     else:
-        score = 4
-    return score
+        return 4
 
 def weighted_total(scores: dict) -> float:
     weights = RUBRIC["weights"]
@@ -111,45 +106,43 @@ def make_excel(scores: dict, final_pct: float, label: str) -> bytes:
             df_total.to_excel(writer, index=False, sheet_name="Resumen")
         return output.getvalue()
 
+# =========================
+# Agregar texto completo
+# =========================
 def _add_full_text_as_paragraphs(doc: Document, text: str) -> None:
-    """
-    Agrega TODO el texto sin recortes.
-    Divide por bloques vacíos y limpia saltos de línea duros para evitar cortes raros.
-    """
+    """Agrega texto limpio, en párrafos."""
     if not text:
         return
-    # Cortes por párrafos (uno o más saltos de línea en blanco)
     blocks = re.split(r"\n{2,}", text.strip())
     for block in blocks:
-        # Unifica líneas internas para que Word haga el ajuste de texto
-        lines = [ln.strip() for ln in block.splitlines() if ln.strip() != ""]
+        lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
         paragraph_text = " ".join(lines)
         if paragraph_text:
             p = doc.add_paragraph(paragraph_text)
-            # Opcional: espaciado y sangría suave para legibilidad
-            pf = p.paragraph_format
-            pf.space_after = Pt(6)
+            p.paragraph_format.space_after = Pt(6)
         else:
             doc.add_paragraph("")
 
+# =========================
+# Generar Word
+# =========================
 def make_word(scores: dict, final_pct: float, label: str, raw_text: str) -> bytes:
     weights = RUBRIC["weights"]
     doc = Document()
 
-    # ---------- Estilos base ----------
+    # --- Estilos base ---
     styles = doc.styles['Normal']
     styles.font.name = 'Times New Roman'
     styles.font.size = Pt(11)
 
-    # ---------- Márgenes y área útil (más ancho de escritura) ----------
-    # Márgenes más pequeños para ampliar el área de texto
+    # --- Márgenes amplios ---
     for section in doc.sections:
         section.top_margin = Cm(2.0)
         section.bottom_margin = Cm(2.0)
         section.left_margin = Cm(2.0)
         section.right_margin = Cm(2.0)
 
-    # ---------- Encabezado ----------
+    # --- Encabezado ---
     doc.add_heading('UCCuyo – Valoración de Informe de Avance', level=1)
     today = datetime.now().strftime("%Y-%m-%d %H:%M")
     doc.add_paragraph(f"Fecha: {today}")
@@ -176,7 +169,14 @@ def make_word(scores: dict, final_pct: float, label: str, raw_text: str) -> byte
     doc.add_paragraph("")
     doc.add_heading('Evidencia analizada (texto completo)', level=2)
 
-    # ---------- TEXTO COMPLETO (sin recortes, sin “...”) ----------
+    # --- Recorte: no seguir escribiendo luego de "INFORME DE AVANCE" ---
+    corte_patron = "INFORME DE AVANCE"
+    if corte_patron in raw_text:
+        # Mantiene el texto hasta esa línea, incluyendo la frase
+        idx = raw_text.index(corte_patron) + len(corte_patron)
+        raw_text = raw_text[:idx]
+
+    # --- Agregar texto limpio ---
     _add_full_text_as_paragraphs(doc, raw_text)
 
     with io.BytesIO() as buffer:
@@ -184,7 +184,7 @@ def make_word(scores: dict, final_pct: float, label: str, raw_text: str) -> byte
         return buffer.getvalue()
 
 # =========================
-# UI
+# Interfaz Streamlit
 # =========================
 st.markdown("## 📊 Valorador de Informes de Avance")
 st.write("Subí un **PDF o DOCX** del informe de avance. La app extrae el texto, propone un puntaje automático por 11 criterios y te permite **ajustarlos manualmente** antes de exportar los resultados.")
@@ -200,7 +200,6 @@ if uploaded is not None:
         raw_text = extract_text_from_pdf(data)
 
     with st.expander("📄 Texto extraído (vista previa)"):
-        # Solo vista previa; NO afecta al Word
         st.text_area("Contenido", raw_text[:6000], height=280)
 
     st.divider()
