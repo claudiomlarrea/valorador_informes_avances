@@ -7,7 +7,7 @@ from docx.shared import Pt, Cm
 from datetime import datetime
 
 # =========================
-# Config
+# Configuración general
 # =========================
 st.set_page_config(
     page_title="UCCuyo · Valorador de Informes de Avance",
@@ -36,7 +36,7 @@ CRITERIA = [
 ]
 
 # =========================
-# Utilidades
+# Funciones auxiliares
 # =========================
 def extract_text_from_docx(file_bytes: bytes) -> str:
     buffer = io.BytesIO(file_bytes)
@@ -107,10 +107,10 @@ def make_excel(scores: dict, final_pct: float, label: str) -> bytes:
         return output.getvalue()
 
 # =========================
-# Agregar texto completo
+# Funciones de texto
 # =========================
 def _add_full_text_as_paragraphs(doc: Document, text: str) -> None:
-    """Agrega texto limpio, en párrafos."""
+    """Agrega texto limpio, en párrafos legibles."""
     if not text:
         return
     blocks = re.split(r"\n{2,}", text.strip())
@@ -124,13 +124,13 @@ def _add_full_text_as_paragraphs(doc: Document, text: str) -> None:
             doc.add_paragraph("")
 
 # =========================
-# Generar Word
+# Generación del Word
 # =========================
 def make_word(scores: dict, final_pct: float, label: str, raw_text: str) -> bytes:
     weights = RUBRIC["weights"]
     doc = Document()
 
-    # --- Estilos base ---
+    # --- Estilo base ---
     styles = doc.styles['Normal']
     styles.font.name = 'Times New Roman'
     styles.font.size = Pt(11)
@@ -142,7 +142,7 @@ def make_word(scores: dict, final_pct: float, label: str, raw_text: str) -> byte
         section.left_margin = Cm(2.0)
         section.right_margin = Cm(2.0)
 
-    # --- Encabezado ---
+    # --- Encabezado principal ---
     doc.add_heading('UCCuyo – Valoración de Informe de Avance', level=1)
     today = datetime.now().strftime("%Y-%m-%d %H:%M")
     doc.add_paragraph(f"Fecha: {today}")
@@ -169,16 +169,27 @@ def make_word(scores: dict, final_pct: float, label: str, raw_text: str) -> byte
     doc.add_paragraph("")
     doc.add_heading('Evidencia analizada (texto completo)', level=2)
 
-    # --- Recorte: no seguir escribiendo luego de "INFORME DE AVANCE" ---
-    corte_patron = "INFORME DE AVANCE"
-    if corte_patron in raw_text:
-        # Mantiene el texto hasta esa línea, incluyendo la frase
-        idx = raw_text.index(corte_patron) + len(corte_patron)
-        raw_text = raw_text[:idx]
+    # --- Recorte corregido ---
+    # Mantiene desde "INFORME DE AVANCE" hasta el primer separador fuerte (si existe)
+    texto_fragmento = raw_text
+    patron = "INFORME DE AVANCE"
+    lower_raw = raw_text.lower()
+    pos = lower_raw.find(patron.lower())
+    if pos != -1:
+        fragment = raw_text[pos:]
+        # buscar posibles puntos de corte posteriores
+        separadores = [
+            "\n___", "Resultados parciales", "RESULTADOS PARCIALES",
+            "\nII.-", "\nII .-", "\nII -", "\n\nII", "\n—", "\n- - -"
+        ]
+        cortes = [fragment.find(s) for s in separadores if fragment.find(s) != -1]
+        stop = min(cortes) if cortes else -1
+        texto_fragmento = fragment[:stop].strip() if stop != -1 else fragment.strip()
 
-    # --- Agregar texto limpio ---
-    _add_full_text_as_paragraphs(doc, raw_text)
+    # --- Agregar texto ---
+    _add_full_text_as_paragraphs(doc, texto_fragmento)
 
+    # --- Guardar en buffer ---
     with io.BytesIO() as buffer:
         doc.save(buffer)
         return buffer.getvalue()
