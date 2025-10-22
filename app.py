@@ -1,10 +1,9 @@
-
 import io, re, yaml, math, pdfplumber
 import streamlit as st
 import pandas as pd
 import numpy as np
 from docx import Document
-from docx.shared import Pt
+from docx.shared import Pt, Cm
 from datetime import datetime
 
 # =========================
@@ -64,7 +63,6 @@ def naive_auto_score(text: str, key: str) -> int:
     for w in words:
         if w.lower() in lower:
             hits += 1
-    # Escalamos por proporción de aciertos respecto a len(words)
     if not words:
         return 0
     ratio = hits / len(words)
@@ -113,13 +111,45 @@ def make_excel(scores: dict, final_pct: float, label: str) -> bytes:
             df_total.to_excel(writer, index=False, sheet_name="Resumen")
         return output.getvalue()
 
+def _add_full_text_as_paragraphs(doc: Document, text: str) -> None:
+    """
+    Agrega TODO el texto sin recortes.
+    Divide por bloques vacíos y limpia saltos de línea duros para evitar cortes raros.
+    """
+    if not text:
+        return
+    # Cortes por párrafos (uno o más saltos de línea en blanco)
+    blocks = re.split(r"\n{2,}", text.strip())
+    for block in blocks:
+        # Unifica líneas internas para que Word haga el ajuste de texto
+        lines = [ln.strip() for ln in block.splitlines() if ln.strip() != ""]
+        paragraph_text = " ".join(lines)
+        if paragraph_text:
+            p = doc.add_paragraph(paragraph_text)
+            # Opcional: espaciado y sangría suave para legibilidad
+            pf = p.paragraph_format
+            pf.space_after = Pt(6)
+        else:
+            doc.add_paragraph("")
+
 def make_word(scores: dict, final_pct: float, label: str, raw_text: str) -> bytes:
     weights = RUBRIC["weights"]
     doc = Document()
+
+    # ---------- Estilos base ----------
     styles = doc.styles['Normal']
     styles.font.name = 'Times New Roman'
     styles.font.size = Pt(11)
 
+    # ---------- Márgenes y área útil (más ancho de escritura) ----------
+    # Márgenes más pequeños para ampliar el área de texto
+    for section in doc.sections:
+        section.top_margin = Cm(2.0)
+        section.bottom_margin = Cm(2.0)
+        section.left_margin = Cm(2.0)
+        section.right_margin = Cm(2.0)
+
+    # ---------- Encabezado ----------
     doc.add_heading('UCCuyo – Valoración de Informe de Avance', level=1)
     today = datetime.now().strftime("%Y-%m-%d %H:%M")
     doc.add_paragraph(f"Fecha: {today}")
@@ -132,21 +162,22 @@ def make_word(scores: dict, final_pct: float, label: str, raw_text: str) -> byte
         w = weights.get(key, 0)
         aporte = round((s/RUBRIC['scale']['max'])*w, 2)
         p = doc.add_paragraph()
-        p.add_run(f"{name} ").bold = True
+        run_title = p.add_run(f"{name} ")
+        run_title.bold = True
         p.add_run(f"(Puntaje: {s}/4 · Peso: {w}% · Aporte: {aporte}%)")
 
     doc.add_paragraph("")
     doc.add_heading('Interpretación', level=2)
-    # Generar una interpretación breve automática
     fortalezas = [name for key, name in CRITERIA if scores[key] >= 3]
     mejoras = [name for key, name in CRITERIA if scores[key] <= 1]
     doc.add_paragraph("Fortalezas: " + (", ".join(fortalezas) if fortalezas else "no se identifican fortalezas destacadas."))
     doc.add_paragraph("Aspectos a mejorar: " + (", ".join(mejoras) if mejoras else "no se identifican aspectos críticos."))
 
     doc.add_paragraph("")
-    doc.add_heading('Evidencia analizada (extracto)', level=2)
-    excerpt = (raw_text[:2500] + "...") if len(raw_text) > 2500 else raw_text
-    doc.add_paragraph(excerpt)
+    doc.add_heading('Evidencia analizada (texto completo)', level=2)
+
+    # ---------- TEXTO COMPLETO (sin recortes, sin “...”) ----------
+    _add_full_text_as_paragraphs(doc, raw_text)
 
     with io.BytesIO() as buffer:
         doc.save(buffer)
@@ -169,6 +200,7 @@ if uploaded is not None:
         raw_text = extract_text_from_pdf(data)
 
     with st.expander("📄 Texto extraído (vista previa)"):
+        # Solo vista previa; NO afecta al Word
         st.text_area("Contenido", raw_text[:6000], height=280)
 
     st.divider()
