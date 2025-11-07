@@ -1,6 +1,5 @@
 # export_fix.py
 # Genera el DOCX en bytes e incluye opcionalmente el nombre del proyecto en el título.
-
 from io import BytesIO
 from datetime import datetime
 from docx import Document
@@ -34,10 +33,9 @@ def export_word_dictamen(
     else:
         titulo = base_titulo
 
-    # Documento
     doc = Document()
 
-    # Título (con fallback si el estilo no existe)
+    # Título (con fallback por si el estilo no existe)
     try:
         p = doc.add_paragraph(titulo)
         p.style = "Title"
@@ -87,3 +85,18 @@ def export_word_dictamen(
     doc.save(buffer)
     buffer.seek(0)
     return buffer.getvalue()
+
+
+# -------- Compatibilidad hacia atrás (si tu app llamaba export_word(...)) --------
+def export_word(resultados, cumplimiento, dictamen_texto, categoria=""):
+    """
+    Wrapper para no romper apps antiguas. NO agrega nombre del proyecto.
+    Si querés nombre de proyecto, usá export_word_dictamen(..., nombre_proyecto="...")
+    """
+    return export_word_dictamen(
+        resultados=resultados,
+        cumplimiento=cumplimiento,
+        dictamen_texto=dictamen_texto,
+        categoria=categoria,
+        nombre_proyecto=None,  # mantenemos comportamiento previo
+    )
