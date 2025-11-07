@@ -1,168 +1,156 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import pdfplumber
-import yaml
+# app.py — Valorador de Informes de Avance (versión final con campo de nombre de proyecto)
 import io
-from docx import Document
-from docx.shared import Pt
-from datetime import datetime
-from openpyxl import Workbook
+import re
+import yaml
+import pdfplumber
+import streamlit as st
+from docx import Document as DocxDocument
 
-# ============================
-# CONFIGURACIÓN
-# ============================
-with open("rubric_config.yaml", "r", encoding="utf-8") as f:
-    config = yaml.safe_load(f)
+from export_fix import export_word_dictamen
 
-weights = config["weights"]
-thresholds = config["thresholds"]
-keywords = config["keywords"]
 
-# ============================
-# FUNCIONES
-# ============================
-def extract_text(file):
-    """Extrae texto desde PDF o DOCX"""
-    if file.name.endswith(".pdf"):
-        text = ""
-        with pdfplumber.open(file) as pdf:
-            for page in pdf.pages:
-                text += page.extract_text() + "\n"
-        return text
-    elif file.name.endswith(".docx"):
-        doc = Document(file)
-        return "\n".join([p.text for p in doc.paragraphs])
-    else:
-        return ""
-
-def auto_score(text, keywords_dict):
-    """Calcula puntajes automáticos según palabras clave"""
-    scores = {}
-    for section, keys in keywords_dict.items():
-        found = sum(k.lower() in text.lower() for k in keys)
-        scores[section] = min(4, found)
-    return scores
-
-def weighted_score(scores, weights):
-    """Calcula el puntaje total ponderado"""
-    total = sum(scores[s] * weights[s] for s in scores)
-    max_total = sum(weights.values()) * 4
-    percent = (total / max_total) * 100
-    return percent
-
-def generate_excel(scores, percent, thresholds):
-    """Genera archivo Excel con resultados"""
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Resultados"
-    ws.append(["Criterio", "Puntaje (0–4)"])
-    for k, v in scores.items():
-        ws.append([k, v])
-    ws.append([])
-    ws.append(["Puntaje total (%)", round(percent, 2)])
-    if percent >= thresholds["aprobado"]:
-        result = "Aprobado"
-    elif percent >= thresholds["aprobado_obs"]:
-        result = "Aprobado con observaciones"
-    else:
-        result = "No aprobado"
-    ws.append(["Dictamen", result])
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-    return output
-
-def generate_word(scores, percent, thresholds):
-    """Genera dictamen Word (sin 'Evidencia analizada (texto completo)')"""
-    doc = Document()
-    style = doc.styles["Normal"]
-    style.font.name = "Arial"
-    style.font.size = Pt(11)
-
-    doc.add_heading("UCCuyo – Valoración de Informe de Avance", level=1)
-    doc.add_paragraph(f"Fecha: {datetime.today().strftime('%Y-%m-%d %H:%M')}")
-    doc.add_paragraph("")
-
-    # Puntajes
-    doc.add_heading("Resultados por criterio", level=2)
-    table = doc.add_table(rows=1, cols=2)
-    hdr = table.rows[0].cells
-    hdr[0].text = "Criterio"
-    hdr[1].text = "Puntaje (0–4)"
-    for k, v in scores.items():
-        row = table.add_row().cells
-        row[0].text = k.replace("_", " ").capitalize()
-        row[1].text = str(v)
-
-    percent_text = f"\nCumplimiento: {round(percent,2)}%"
-    doc.add_paragraph(percent_text)
-
-    # Dictamen final
-    if percent >= thresholds["aprobado"]:
-        result = "Aprobado"
-    elif percent >= thresholds["aprobado_obs"]:
-        result = "Aprobado con observaciones"
-    else:
-        result = "No aprobado"
-
-    doc.add_heading("Dictamen final", level=2)
-    doc.add_paragraph(result)
-
-    # Se eliminó el bloque de "Evidencia analizada (texto completo)"
-
-    # Observaciones
-    doc.add_heading("Observaciones del evaluador", level=2)
-    doc.add_paragraph("..............................................................................")
-    doc.add_paragraph("..............................................................................")
-    doc.add_paragraph("..............................................................................")
-
-    output = io.BytesIO()
-    doc.save(output)
-    output.seek(0)
-    return output
-
-# ============================
-# INTERFAZ STREAMLIT
-# ============================
+# ---------- Configuración ----------
+st.set_page_config(page_title="Valorador de Informes de Avance", layout="centered")
 st.title("📘 Valorador de Informes de Avance")
 st.write("Subí un informe de avance (PDF o DOCX) para evaluarlo automáticamente según la rúbrica institucional.")
 
-uploaded_file = st.file_uploader("Cargar archivo", type=["pdf", "docx"])
 
-if uploaded_file:
-    text = extract_text(uploaded_file)
+# ---------- Utilidades ----------
+def load_config(path: str = "rubric_config.yaml") -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
-    with st.expander("Ver texto extraído"):
-        st.text_area("Texto completo", text, height=300)
 
-    st.subheader("Evaluación automática")
-    auto_scores = auto_score(text, keywords)
-    df = pd.DataFrame(auto_scores.items(), columns=["Criterio", "Puntaje (0–4)"])
-    st.dataframe(df, use_container_width=True)
-
-    percent = weighted_score(auto_scores, weights)
-    st.metric(label="Puntaje total (%)", value=round(percent, 2))
-
-    if percent >= thresholds["aprobado"]:
-        result = "✅ Aprobado"
-    elif percent >= thresholds["aprobado_obs"]:
-        result = "⚠️ Aprobado con observaciones"
+def extract_text(uploaded_file) -> str:
+    """Extrae texto básico de PDF o DOCX."""
+    name = uploaded_file.name.lower()
+    if name.endswith(".pdf"):
+        try:
+            text = []
+            with pdfplumber.open(io.BytesIO(uploaded_file.read())) as pdf:
+                for page in pdf.pages:
+                    text.append(page.extract_text() or "")
+            return "\n".join(text)
+        except Exception:
+            return ""
+    elif name.endswith(".docx"):
+        try:
+            doc = DocxDocument(io.BytesIO(uploaded_file.read()))
+            return "\n".join(p.text for p in doc.paragraphs)
+        except Exception:
+            return ""
     else:
-        result = "❌ No aprobado"
-    st.success(f"Dictamen automático: {result}")
+        try:
+            return uploaded_file.read().decode("utf-8", errors="ignore")
+        except Exception:
+            return ""
 
-    st.subheader("Ajuste manual (opcional)")
-    manual_scores = {}
-    for k in auto_scores.keys():
-        manual_scores[k] = st.slider(f"{k.replace('_',' ').capitalize()}", 0, 4, int(auto_scores[k]))
 
-    if st.button("Generar informes"):
-        final_percent = weighted_score(manual_scores, weights)
-        excel_file = generate_excel(manual_scores, final_percent, thresholds)
-        word_file = generate_word(manual_scores, final_percent, thresholds)
+def auto_score(text: str, keywords_map: dict, scale_min: int, scale_max: int) -> dict:
+    """Asigna un puntaje básico según palabras clave (AND/OR simple)."""
+    text_norm = text.lower()
+    scores = {}
+    for key, kw_list in keywords_map.items():
+        hits = 0
+        for token in kw_list:
+            if re.search(r"\b" + re.escape(token.lower()) + r"\b", text_norm):
+                hits += 1
+        ratio = min(hits / len(kw_list), 1.0) if kw_list else 0.0
+        score = round(scale_min + ratio * (scale_max - scale_min))
+        scores[key] = int(score)
+    return scores
 
-        st.download_button("⬇️ Descargar Excel", excel_file, file_name="valoracion_informe_avance.xlsx")
-        st.download_button("⬇️ Descargar Word", word_file, file_name="valoracion_informe_avance.docx")
 
-        st.success("Archivos generados correctamente (sin apartado de evidencia analizada).")
+def pretty_names():
+    return {
+        "identificacion": "Identificacion",
+        "cronograma": "Cronograma",
+        "objetivos": "Objetivos",
+        "metodologia": "Metodologia",
+        "resultados": "Resultados",
+        "formacion": "Formacion",
+        "gestion": "Gestion",
+        "dificultades": "Dificultades",
+        "difusion": "Difusion",
+        "calidad_formal": "Calidad formal",
+        "impacto": "Impacto",
+    }
+
+
+def compute_cumplimiento(puntajes: dict, cfg: dict) -> float:
+    scale_max = cfg["scale"]["max"]
+    weights = cfg["weights"]
+    s = 0.0
+    for k, w in weights.items():
+        score = puntajes.get(k, 0)
+        s += (score / scale_max) * w
+    return float(s)
+
+
+def dictamen_from_cumplimiento(p: float, cfg: dict) -> str:
+    th_ok = cfg["thresholds"]["aprobado"]
+    th_obs = cfg["thresholds"]["aprobado_obs"]
+    if p >= th_ok:
+        return "Aprobado"
+    if p >= th_obs:
+        return "Aprobado con observaciones"
+    return "No aprobado"
+
+
+# ---------- App principal ----------
+cfg = load_config("rubric_config.yaml")
+scale_min = cfg["scale"]["min"]
+scale_max = cfg["scale"]["max"]
+weights = cfg["weights"]
+keywords_map = cfg.get("keywords", {})
+
+uploaded = st.file_uploader("Cargar archivo", type=["pdf", "docx"])
+
+# Campo para el nombre del proyecto
+nombre_proyecto = st.text_input(
+    "Nombre del proyecto de investigación valorado (aparecerá en el Word):",
+    value=st.session_state.get("nombre_proyecto", ""),
+)
+st.session_state["nombre_proyecto"] = nombre_proyecto
+
+if uploaded:
+    raw_text = extract_text(uploaded)
+    if not raw_text.strip():
+        st.warning("No se pudo extraer texto. Podés continuar ajustando manualmente los puntajes.")
+    auto = auto_score(raw_text, keywords_map, scale_min, scale_max)
+
+    st.subheader("Ajuste de puntajes por criterio (0–4)")
+    pretty = pretty_names()
+    puntajes = {}
+    for key in weights.keys():
+        default = auto.get(key, 0)
+        puntajes[key] = st.slider(pretty[key], min_value=scale_min, max_value=scale_max, value=int(default))
+
+    cumplimiento = compute_cumplimiento(puntajes, cfg)
+    dictamen = dictamen_from_cumplimiento(cumplimiento, cfg)
+
+    st.subheader("Resultados por criterio")
+    st.write("| Criterio | Puntaje (0–4) |")
+    st.write("|---|---|")
+    for key in weights.keys():
+        st.write(f"| {pretty[key]} | {puntajes[key]} |")
+
+    st.write(f"**Cumplimiento:** {cumplimiento:.1f}%")
+    st.write("**Dictamen final:** ", dictamen)
+
+    resultados_word = {pretty[k]: puntajes[k] for k in weights.keys()}
+
+    st.download_button(
+        "Descargar informe Word",
+        data=export_word_dictamen(
+            resultados=resultados_word,
+            cumplimiento=cumplimiento,
+            dictamen_texto=dictamen,
+            categoria="",
+            nombre_proyecto=nombre_proyecto,
+        ),
+        file_name="informe_valoracion_avance.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+else:
+    st.info("Cargá un informe para comenzar.")
