@@ -163,15 +163,21 @@ if uploaded_file:
     for k in auto_scores.keys():
         manual_scores[k] = st.slider(f"{k.replace('_',' ').capitalize()}", 0, 4, int(auto_scores[k]))
 
-    # === NUEVO: campo para el nombre del proyecto ===
+    # === Campo para el nombre del proyecto (para el Word) ===
     nombre_proyecto = st.text_input("Nombre del proyecto (aparecerá en el Word):", "")
 
+    # === NUEVO: elegir si usar puntajes automáticos o manuales al generar ===
+    use_auto = st.checkbox("Generar informe con los puntajes automáticos (recomendado)", value=True)
+
     if st.button("Generar informes"):
-        final_percent = weighted_score(manual_scores, weights)
-        excel_file = generate_excel(manual_scores, final_percent, thresholds)
-        word_file = generate_word(manual_scores, final_percent, thresholds, nombre_proyecto)
+        # Elegir qué puntajes usar
+        scores_to_use = auto_scores if use_auto else manual_scores
+
+        final_percent = weighted_score(scores_to_use, weights)
+        excel_file = generate_excel(scores_to_use, final_percent, thresholds)
+        word_file  = generate_word(scores_to_use, final_percent, thresholds, nombre_proyecto)
 
         st.download_button("⬇️ Descargar Excel", excel_file, file_name="valoracion_informe_avance.xlsx")
-        st.download_button("⬇️ Descargar Word", word_file, file_name="valoracion_informe_avance.docx")
+        st.download_button("⬇️ Descargar Word",  word_file,  file_name="valoracion_informe_avance.docx")
 
-        st.success("Archivos generados correctamente (sin apartado de evidencia analizada).")
+        st.success("Informe generado con puntajes {}.".format("automáticos" if use_auto else "ajustados manualmente"))
