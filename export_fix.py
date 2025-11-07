@@ -1,102 +1,60 @@
-# export_fix.py
-# Genera el DOCX en bytes e incluye opcionalmente el nombre del proyecto en el título.
-from io import BytesIO
-from datetime import datetime
+
+# export_fix.py — Exportación a Word sin truncado para Informes de Avance
 from docx import Document
-from docx.shared import Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+import io
+import pandas as pd
 
+def add_full_text(doc, text: str):
+    """Escribe 'text' completo preservando párrafos. No acorta ni añade '...'."""
+    if not text:
+        return
+    text = text.replace('\r\n','\n').replace('\r','\n')
+    blocks = text.split('\n\n')
+    for block in blocks:
+        for line in block.split('\n'):
+            doc.add_paragraph(line)
+        doc.add_paragraph('')  # separación entre bloques
 
-def export_word_dictamen(
-    resultados: dict,
-    cumplimiento,
-    dictamen_texto: str,
-    categoria: str = "",
-    nombre_proyecto: str | None = None,
-    fecha: str | None = None,
-) -> bytes:
+def export_word_dictamen(section_results: dict, total_general: float, dictamen_texto: str, categoria: str) -> bytes:
+    """Genera el Word final del dictamen sin recortes.
+    - section_results: {seccion: {'df': pandas.DataFrame, 'subtotal': float}, ...}
+    - total_general: puntaje total
+    - dictamen_texto: texto completo del dictamen (se escribirá íntegro)
+    - categoria: categoría alcanzada (si aplica)
+    Devuelve: bytes del .docx listo para 'st.download_button'.
     """
-    Crea el informe Word con encabezado institucional y devuelve BYTES (para st.download_button).
-
-    - resultados: dict {"Identificacion":4, "Cronograma":3, ...}
-    - cumplimiento: porcentaje (float o str)
-    - dictamen_texto: 'Aprobado', 'Aprobado con observaciones' o 'No aprobado'
-    - categoria: opcional (puede ir vacío)
-    - nombre_proyecto: si viene, se muestra como "Del proyecto …" en el título
-    - fecha: opcional (si no, se usa la actual)
-    """
-    if fecha is None:
-        fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    base_titulo = "UCCuyo – Valoración de Informe de Avance"
-    if nombre_proyecto and str(nombre_proyecto).strip():
-        titulo = f'{base_titulo} "Del proyecto {str(nombre_proyecto).strip()}"'
-    else:
-        titulo = base_titulo
-
     doc = Document()
-
-    # Título (con fallback por si el estilo no existe)
-    try:
-        p = doc.add_paragraph(titulo)
-        p.style = "Title"
-        p.runs[0].font.size = Pt(14)
-    except Exception:
-        p = doc.add_paragraph(titulo)
-        p.runs[0].font.size = Pt(14)
-
-    doc.add_paragraph(f"Fecha: {fecha}")
-    doc.add_paragraph("")  # espacio
-
-    # Resultados por criterio
-    doc.add_paragraph("Resultados por criterio")
-    table = doc.add_table(rows=1, cols=2)
-    hdr = table.rows[0].cells
-    hdr[0].text = "Criterio"
-    hdr[1].text = "Puntaje (0–4)"
-
-    for criterio, puntaje in resultados.items():
-        row = table.add_row().cells
-        row[0].text = str(criterio)
-        row[1].text = str(puntaje)
-
-    # Cumplimiento y dictamen
-    try:
-        cumpl_txt = f"{float(cumplimiento):.1f}%"
-    except Exception:
-        cumpl_txt = str(cumplimiento)
-
-    doc.add_paragraph(f"\nCumplimiento: {cumpl_txt}")
-    doc.add_paragraph("\nDictamen final")
+    p = doc.add_paragraph('Universidad Católica de Cuyo — Secretaría de Investigación')
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph('Informe de valoración — Informe de Avance').alignment = WD_ALIGN_PARAGRAPH.CENTER
+    doc.add_paragraph('')
+    doc.add_paragraph(f'Puntaje total: {total_general:.1f}')
     if categoria:
-        doc.add_paragraph(str(categoria))
-    if dictamen_texto:
-        doc.add_paragraph(str(dictamen_texto))
+        doc.add_paragraph(f'Categoría alcanzada: {categoria}')
+    doc.add_paragraph('')
 
-    # Observaciones
-    doc.add_paragraph(
-        "\nObservaciones del evaluador\n"
-        + "..............................................................................\n"
-        + "..............................................................................\n"
-        + ".............................................................................."
-    )
+    # Dictamen completo (sin cortar)
+    doc.add_heading('Dictamen', level=2)
+    add_full_text(doc, dictamen_texto)
 
-    # A bytes
-    buffer = BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer.getvalue()
+    # Tablas por sección
+    for sec, data in section_results.items():
+        doc.add_heading(sec, level=3)
+        df = data.get('df')
+        if df is None or df.empty:
+            doc.add_paragraph('Sin ítems detectados.')
+        else:
+            table = doc.add_table(rows=1, cols=len(df.columns))
+            hdr = table.rows[0].cells
+            for i, c in enumerate(df.columns):
+                hdr[i].text = str(c)
+            for _, row in df.iterrows():
+                cells = table.add_row().cells
+                for i, c in enumerate(df.columns):
+                    cells[i].text = str(row[c])
+        doc.add_paragraph(f'Subtotal sección: {data.get("subtotal", 0):.1f}')
 
-
-# -------- Compatibilidad hacia atrás (si tu app llamaba export_word(...)) --------
-def export_word(resultados, cumplimiento, dictamen_texto, categoria=""):
-    """
-    Wrapper para no romper apps antiguas. NO agrega nombre del proyecto.
-    Si querés nombre de proyecto, usá export_word_dictamen(..., nombre_proyecto="...")
-    """
-    return export_word_dictamen(
-        resultados=resultados,
-        cumplimiento=cumplimiento,
-        dictamen_texto=dictamen_texto,
-        categoria=categoria,
-        nombre_proyecto=None,  # mantenemos comportamiento previo
-    )
+    bio = io.BytesIO()
+    doc.save(bio)
+    return bio.getvalue()
