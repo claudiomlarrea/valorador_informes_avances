@@ -1,6 +1,5 @@
-
 # export_fix.py
-# Genera el DOCX en bytes e incluye opcionalmente el nombre del proyecto en el título.
+# Genera el DOCX e incluye el nombre del proyecto en el encabezado.
 
 from io import BytesIO
 from datetime import datetime
@@ -16,16 +15,7 @@ def export_word_dictamen(
     nombre_proyecto: str | None = None,
     fecha: str | None = None,
 ) -> bytes:
-    """
-    Crea el informe Word con encabezado institucional y devuelve BYTES (para st.download_button).
-
-    - resultados: dict {"Identificacion":4, "Cronograma":3, ...}
-    - cumplimiento: porcentaje (float o str)
-    - dictamen_texto: 'Aprobado', 'Aprobado con observaciones' o 'No aprobado'
-    - categoria: opcional (puede ir vacío)
-    - nombre_proyecto: si viene, se muestra como "Del proyecto …" en el título
-    - fecha: opcional (si no, se usa la actual)
-    """
+    """Genera el informe Word institucional y devuelve los bytes para descargar."""
     if fecha is None:
         fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
 
@@ -37,7 +27,7 @@ def export_word_dictamen(
 
     doc = Document()
 
-    # Título (con fallback por si el estilo no existe)
+    # Encabezado
     try:
         p = doc.add_paragraph(titulo)
         p.style = "Title"
@@ -47,9 +37,9 @@ def export_word_dictamen(
         p.runs[0].font.size = Pt(14)
 
     doc.add_paragraph(f"Fecha: {fecha}")
-    doc.add_paragraph("")  # espacio
+    doc.add_paragraph("")
 
-    # Resultados por criterio
+    # Resultados
     doc.add_paragraph("Resultados por criterio")
     table = doc.add_table(rows=1, cols=2)
     hdr = table.rows[0].cells
@@ -61,7 +51,6 @@ def export_word_dictamen(
         row[0].text = str(criterio)
         row[1].text = str(puntaje)
 
-    # Cumplimiento y dictamen
     try:
         cumpl_txt = f"{float(cumplimiento):.1f}%"
     except Exception:
@@ -74,7 +63,6 @@ def export_word_dictamen(
     if dictamen_texto:
         doc.add_paragraph(str(dictamen_texto))
 
-    # Observaciones
     doc.add_paragraph(
         "\nObservaciones del evaluador\n"
         + "..............................................................................\n"
@@ -82,23 +70,7 @@ def export_word_dictamen(
         + ".............................................................................."
     )
 
-    # A bytes
     buffer = BytesIO()
     doc.save(buffer)
     buffer.seek(0)
     return buffer.getvalue()
-
-
-# -------- Compatibilidad hacia atrás (si tu app llamaba export_word(...)) --------
-def export_word(resultados, cumplimiento, dictamen_texto, categoria=""):
-    """
-    Wrapper para no romper apps antiguas. NO agrega nombre del proyecto.
-    Si querés nombre de proyecto, usá export_word_dictamen(..., nombre_proyecto="...")
-    """
-    return export_word_dictamen(
-        resultados=resultados,
-        cumplimiento=cumplimiento,
-        dictamen_texto=dictamen_texto,
-        categoria=categoria,
-        nombre_proyecto=None,  # mantenemos comportamiento previo
-    )
