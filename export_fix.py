@@ -1,5 +1,5 @@
 # export_fix.py
-# Genera el DOCX e incluye el nombre del proyecto en el encabezado.
+# Versión final: agrega el nombre del proyecto en el Word sin alterar ningún cálculo.
 
 from io import BytesIO
 from datetime import datetime
@@ -7,27 +7,21 @@ from docx import Document
 from docx.shared import Pt
 
 
-def export_word_dictamen(
-    resultados: dict,
-    cumplimiento,
-    dictamen_texto: str,
-    categoria: str = "",
-    nombre_proyecto: str | None = None,
-    fecha: str | None = None,
-) -> bytes:
-    """Genera el informe Word institucional y devuelve los bytes para descargar."""
-    if fecha is None:
-        fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
+def export_word(resultados, cumplimiento, dictamen_texto, categoria="", nombre_proyecto=""):
+    """
+    Genera el informe Word institucional con o sin nombre de proyecto.
+    No modifica el cálculo del valorador.
+    """
+    doc = Document()
+    fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    # Encabezado
     base_titulo = "UCCuyo – Valoración de Informe de Avance"
     if nombre_proyecto and str(nombre_proyecto).strip():
         titulo = f'{base_titulo} "Del proyecto {str(nombre_proyecto).strip()}"'
     else:
         titulo = base_titulo
 
-    doc = Document()
-
-    # Encabezado
     try:
         p = doc.add_paragraph(titulo)
         p.style = "Title"
@@ -37,26 +31,27 @@ def export_word_dictamen(
         p.runs[0].font.size = Pt(14)
 
     doc.add_paragraph(f"Fecha: {fecha}")
-    doc.add_paragraph("")
+    doc.add_paragraph("")  # Espacio
 
-    # Resultados
+    # Resultados por criterio
     doc.add_paragraph("Resultados por criterio")
     table = doc.add_table(rows=1, cols=2)
-    hdr = table.rows[0].cells
-    hdr[0].text = "Criterio"
-    hdr[1].text = "Puntaje (0–4)"
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = "Criterio"
+    hdr_cells[1].text = "Puntaje (0–4)"
 
     for criterio, puntaje in resultados.items():
-        row = table.add_row().cells
-        row[0].text = str(criterio)
-        row[1].text = str(puntaje)
+        row_cells = table.add_row().cells
+        row_cells[0].text = str(criterio)
+        row_cells[1].text = str(puntaje)
 
+    # Cumplimiento y dictamen
     try:
-        cumpl_txt = f"{float(cumplimiento):.1f}%"
+        cumplimiento_txt = f"{float(cumplimiento):.1f}%"
     except Exception:
-        cumpl_txt = str(cumplimiento)
+        cumplimiento_txt = str(cumplimiento)
 
-    doc.add_paragraph(f"\nCumplimiento: {cumpl_txt}")
+    doc.add_paragraph(f"\nCumplimiento: {cumplimiento_txt}")
     doc.add_paragraph("\nDictamen final")
     if categoria:
         doc.add_paragraph(str(categoria))
