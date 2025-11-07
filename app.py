@@ -28,7 +28,7 @@ def extract_text(file):
         text = ""
         with pdfplumber.open(file) as pdf:
             for page in pdf.pages:
-                text += page.extract_text() + "\n"
+                text += (page.extract_text() or "") + "\n"
         return text
     elif file.name.endswith(".docx"):
         doc = Document(file)
@@ -39,8 +39,9 @@ def extract_text(file):
 def auto_score(text, keywords_dict):
     """Calcula puntajes automáticos según palabras clave"""
     scores = {}
+    text_low = (text or "").lower()
     for section, keys in keywords_dict.items():
-        found = sum(k.lower() in text.lower() for k in keys)
+        found = sum((k or "").lower() in text_low for k in keys)
         scores[section] = min(4, found)
     return scores
 
@@ -48,7 +49,7 @@ def weighted_score(scores, weights):
     """Calcula el puntaje total ponderado"""
     total = sum(scores[s] * weights[s] for s in scores)
     max_total = sum(weights.values()) * 4
-    percent = (total / max_total) * 100
+    percent = (total / max_total) * 100 if max_total > 0 else 0.0
     return percent
 
 def generate_excel(scores, percent, thresholds):
@@ -73,14 +74,21 @@ def generate_excel(scores, percent, thresholds):
     output.seek(0)
     return output
 
-def generate_word(scores, percent, thresholds):
-    """Genera dictamen Word (sin 'Evidencia analizada (texto completo)')"""
+def generate_word(scores, percent, thresholds, nombre_proyecto=""):
+    """Genera dictamen Word incluyendo el nombre del proyecto"""
     doc = Document()
     style = doc.styles["Normal"]
     style.font.name = "Arial"
     style.font.size = Pt(11)
 
-    doc.add_heading("UCCuyo – Valoración de Informe de Avance", level=1)
+    # Encabezado
+    base_title = "UCCuyo – Valoración de Informe de Avance"
+    nombre_clean = (nombre_proyecto or "").strip()
+    if nombre_clean:
+        doc.add_heading(f'{base_title} "Del proyecto {nombre_clean}"', level=1)
+    else:
+        doc.add_heading(base_title, level=1)
+
     doc.add_paragraph(f"Fecha: {datetime.today().strftime('%Y-%m-%d %H:%M')}")
     doc.add_paragraph("")
 
@@ -108,8 +116,6 @@ def generate_word(scores, percent, thresholds):
 
     doc.add_heading("Dictamen final", level=2)
     doc.add_paragraph(result)
-
-    # Se eliminó el bloque de "Evidencia analizada (texto completo)"
 
     # Observaciones
     doc.add_heading("Observaciones del evaluador", level=2)
@@ -157,10 +163,13 @@ if uploaded_file:
     for k in auto_scores.keys():
         manual_scores[k] = st.slider(f"{k.replace('_',' ').capitalize()}", 0, 4, int(auto_scores[k]))
 
+    # === NUEVO: campo para el nombre del proyecto ===
+    nombre_proyecto = st.text_input("Nombre del proyecto (aparecerá en el Word):", "")
+
     if st.button("Generar informes"):
         final_percent = weighted_score(manual_scores, weights)
         excel_file = generate_excel(manual_scores, final_percent, thresholds)
-        word_file = generate_word(manual_scores, final_percent, thresholds)
+        word_file = generate_word(manual_scores, final_percent, thresholds, nombre_proyecto)
 
         st.download_button("⬇️ Descargar Excel", excel_file, file_name="valoracion_informe_avance.xlsx")
         st.download_button("⬇️ Descargar Word", word_file, file_name="valoracion_informe_avance.docx")
