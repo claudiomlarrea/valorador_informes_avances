@@ -46,7 +46,7 @@ def auto_score(text, keywords_dict):
     return scores
 
 def weighted_score(scores, weights):
-    """Calcula el puntaje total ponderado"""
+    """Calcula el puntaje total ponderado (%) a partir de puntajes 0–4"""
     total = sum(scores[s] * weights[s] for s in scores)
     max_total = sum(weights.values()) * 4
     percent = (total / max_total) * 100 if max_total > 0 else 0.0
@@ -92,7 +92,7 @@ def generate_word(scores, percent, thresholds, nombre_proyecto=""):
     doc.add_paragraph(f"Fecha: {datetime.today().strftime('%Y-%m-%d %H:%M')}")
     doc.add_paragraph("")
 
-    # Puntajes
+    # Puntajes por criterio
     doc.add_heading("Resultados por criterio", level=2)
     table = doc.add_table(rows=1, cols=2)
     hdr = table.rows[0].cells
@@ -103,7 +103,7 @@ def generate_word(scores, percent, thresholds, nombre_proyecto=""):
         row[0].text = k.replace("_", " ").capitalize()
         row[1].text = str(v)
 
-    percent_text = f"\nCumplimiento: {round(percent,2)}%"
+    percent_text = f"\nCumplimiento: {round(percent, 2)}%"
     doc.add_paragraph(percent_text)
 
     # Dictamen final
@@ -132,7 +132,9 @@ def generate_word(scores, percent, thresholds, nombre_proyecto=""):
 # INTERFAZ STREAMLIT
 # ============================
 st.title("📘 Valorador de Informes de Avance")
-st.write("Subí un informe de avance (PDF o DOCX) para evaluarlo automáticamente según la rúbrica institucional.")
+st.write(
+    "Subí un informe de avance (PDF o DOCX) para evaluarlo automáticamente según la rúbrica institucional."
+)
 
 uploaded_file = st.file_uploader("Cargar archivo", type=["pdf", "docx"])
 
@@ -142,13 +144,14 @@ if uploaded_file:
     with st.expander("Ver texto extraído"):
         st.text_area("Texto completo", text, height=300)
 
+    # --- Evaluación automática ---
     st.subheader("Evaluación automática")
     auto_scores = auto_score(text, keywords)
     df = pd.DataFrame(auto_scores.items(), columns=["Criterio", "Puntaje (0–4)"])
     st.dataframe(df, use_container_width=True)
 
     percent = weighted_score(auto_scores, weights)
-    st.metric(label="Puntaje total (%)", value=round(percent, 2))
+    st.metric(label="Puntaje total automático (%)", value=round(percent, 2))
 
     if percent >= thresholds["aprobado"]:
         result = "✅ Aprobado"
@@ -158,20 +161,35 @@ if uploaded_file:
         result = "❌ No aprobado"
     st.success(f"Dictamen automático: {result}")
 
+    # --- Ajuste manual ---
     st.subheader("Ajuste manual (opcional)")
     manual_scores = {}
     for k in auto_scores.keys():
-        manual_scores[k] = st.slider(f"{k.replace('_',' ').capitalize()}", 0, 4, int(auto_scores[k]))
-        
-     # === Mostrar puntaje total manual en tiempo real ===
-    manual_percent = weighted_score(manual_scores, weights)
-    st.metric(label="Puntaje total con ajuste manual (%)", value=round(manual_percent, 2))
-    
-    # === Campo para el nombre del proyecto (para el Word) ===
-    nombre_proyecto = st.text_input("Nombre del proyecto (aparecerá en el Word):", "")
+        manual_scores[k] = st.slider(
+            f"{k.replace('_',' ').capitalize()}",
+            0,
+            4,
+            int(auto_scores[k]),
+        )
 
-    # === NUEVO: elegir si usar puntajes automáticos o manuales al generar ===
-    use_auto = st.checkbox("Generar informe con los puntajes automáticos (recomendado)", value=True)
+    # === Mostrar puntaje total manual en tiempo real ===
+    manual_percent = weighted_score(manual_scores, weights)
+    st.metric(
+        label="Puntaje total con ajuste manual (%)",
+        value=round(manual_percent, 2),
+    )
+
+    # === Campo para el nombre del proyecto (para el Word) ===
+    nombre_proyecto = st.text_input(
+        "Nombre del proyecto (aparecerá en el Word):",
+        "",
+    )
+
+    # === Elegir si usar puntajes automáticos o manuales al generar ===
+    use_auto = st.checkbox(
+        "Generar informe con los puntajes automáticos (recomendado)",
+        value=True,
+    )
 
     if st.button("Generar informes"):
         # Elegir qué puntajes usar
@@ -179,9 +197,26 @@ if uploaded_file:
 
         final_percent = weighted_score(scores_to_use, weights)
         excel_file = generate_excel(scores_to_use, final_percent, thresholds)
-        word_file  = generate_word(scores_to_use, final_percent, thresholds, nombre_proyecto)
+        word_file = generate_word(
+            scores_to_use,
+            final_percent,
+            thresholds,
+            nombre_proyecto,
+        )
 
-        st.download_button("⬇️ Descargar Excel", excel_file, file_name="valoracion_informe_avance.xlsx")
-        st.download_button("⬇️ Descargar Word",  word_file,  file_name="valoracion_informe_avance.docx")
+        st.download_button(
+            "⬇️ Descargar Excel",
+            excel_file,
+            file_name="valoracion_informe_avance.xlsx",
+        )
+        st.download_button(
+            "⬇️ Descargar Word",
+            word_file,
+            file_name="valoracion_informe_avance.docx",
+        )
 
-        st.success("Informe generado con puntajes {}.".format("automáticos" if use_auto else "ajustados manualmente"))
+        st.success(
+            "Informe generado con puntajes {}.".format(
+                "automáticos" if use_auto else "ajustados manualmente"
+            )
+        )
