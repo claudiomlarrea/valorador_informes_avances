@@ -162,7 +162,11 @@ if uploaded_file:
     manual_scores = {}
     for k in auto_scores.keys():
         manual_scores[k] = st.slider(f"{k.replace('_',' ').capitalize()}", 0, 4, int(auto_scores[k]))
-
+        
+     # === Mostrar puntaje total manual en tiempo real ===
+    manual_percent = weighted_score(manual_scores, weights)
+    st.metric(label="Puntaje total con ajuste manual (%)", value=round(manual_percent, 2))
+    
     # === Campo para el nombre del proyecto (para el Word) ===
     nombre_proyecto = st.text_input("Nombre del proyecto (aparecerá en el Word):", "")
 
