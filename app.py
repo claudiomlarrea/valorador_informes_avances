@@ -132,9 +132,7 @@ def generate_word(scores, percent, thresholds, nombre_proyecto=""):
 # INTERFAZ STREAMLIT
 # ============================
 st.title("📘 Valorador de Informes de Avance")
-st.write(
-    "Subí un informe de avance (PDF o DOCX) para evaluarlo automáticamente según la rúbrica institucional."
-)
+st.write("Subí un informe de avance (PDF o DOCX) para evaluarlo automáticamente según la rúbrica institucional.")
 
 uploaded_file = st.file_uploader("Cargar archivo", type=["pdf", "docx"])
 
@@ -144,22 +142,14 @@ if uploaded_file:
     with st.expander("Ver texto extraído"):
         st.text_area("Texto completo", text, height=300)
 
-    # --- Evaluación automática ---
+    # --- Evaluación automática (referencia) ---
     st.subheader("Evaluación automática")
     auto_scores = auto_score(text, keywords)
     df = pd.DataFrame(auto_scores.items(), columns=["Criterio", "Puntaje (0–4)"])
     st.dataframe(df, use_container_width=True)
 
-    percent = weighted_score(auto_scores, weights)
-    st.metric(label="Puntaje total automático (%)", value=round(percent, 2))
-
-    if percent >= thresholds["aprobado"]:
-        result = "✅ Aprobado"
-    elif percent >= thresholds["aprobado_obs"]:
-        result = "⚠️ Aprobado con observaciones"
-    else:
-        result = "❌ No aprobado"
-    st.success(f"Dictamen automático: {result}")
+    auto_percent = weighted_score(auto_scores, weights)
+    st.metric(label="Puntaje automático inicial (%)", value=round(auto_percent, 2))
 
     # --- Ajuste manual ---
     st.subheader("Ajuste manual (opcional)")
@@ -172,37 +162,27 @@ if uploaded_file:
             int(auto_scores[k]),
         )
 
-    # === Mostrar puntaje total manual en tiempo real ===
-    manual_percent = weighted_score(manual_scores, weights)
-    st.metric(
-        label="Puntaje total con ajuste manual (%)",
-        value=round(manual_percent, 2),
-    )
+    # Puntaje total AJUSTADO (este es el que importa)
+    adjusted_percent = weighted_score(manual_scores, weights)
+    st.metric(label="Puntaje total ajustado (%)", value=round(adjusted_percent, 2))
 
-    # === Campo para el nombre del proyecto (para el Word) ===
-    nombre_proyecto = st.text_input(
-        "Nombre del proyecto (aparecerá en el Word):",
-        "",
-    )
+    # Dictamen con ajuste manual
+    if adjusted_percent >= thresholds["aprobado"]:
+        result = "✅ Aprobado"
+    elif adjusted_percent >= thresholds["aprobado_obs"]:
+        result = "⚠️ Aprobado con observaciones"
+    else:
+        result = "❌ No aprobado"
+    st.success(f"Dictamen (con ajuste manual): {result}")
 
-    # === Elegir si usar puntajes automáticos o manuales al generar ===
-    use_auto = st.checkbox(
-        "Generar informe con los puntajes automáticos (recomendado)",
-        value=True,
-    )
+    # Nombre del proyecto para el Word
+    nombre_proyecto = st.text_input("Nombre del proyecto (aparecerá en el Word):", "")
 
+    # Generar informes SIEMPRE con los valores ajustados
     if st.button("Generar informes"):
-        # Elegir qué puntajes usar
-        scores_to_use = auto_scores if use_auto else manual_scores
-
-        final_percent = weighted_score(scores_to_use, weights)
-        excel_file = generate_excel(scores_to_use, final_percent, thresholds)
-        word_file = generate_word(
-            scores_to_use,
-            final_percent,
-            thresholds,
-            nombre_proyecto,
-        )
+        final_percent = adjusted_percent
+        excel_file = generate_excel(manual_scores, final_percent, thresholds)
+        word_file = generate_word(manual_scores, final_percent, thresholds, nombre_proyecto)
 
         st.download_button(
             "⬇️ Descargar Excel",
@@ -215,8 +195,4 @@ if uploaded_file:
             file_name="valoracion_informe_avance.docx",
         )
 
-        st.success(
-            "Informe generado con puntajes {}.".format(
-                "automáticos" if use_auto else "ajustados manualmente"
-            )
-        )
+        st.success("Informe generado con los puntajes ajustados manualmente.")
