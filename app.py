@@ -8,7 +8,7 @@ from docx import Document
 from docx.shared import Pt
 from datetime import datetime
 from openpyxl import Workbook
-
+st.set_page_config(layout="wide")
 # ============================
 # CONFIGURACIÓN
 # ============================
