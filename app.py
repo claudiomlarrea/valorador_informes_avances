@@ -140,9 +140,10 @@ st.markdown("""
 }
 
 /* Título principal */
-h1 {
-    color: #064a3f !important;
-    font-weight: 700;
+.header-uccuyo h1,
+.header-uccuyo h2,
+.header-uccuyo h3 {
+    color: white !important;
 }
 
 /* Subtítulos */
@@ -208,18 +209,21 @@ p, label, span {
 
 </style>
 """, unsafe_allow_html=True)
+
 st.markdown("""
-<div style='
+<div class='header-uccuyo' style='
     background: linear-gradient(90deg, #0b5d4b, #177e6c);
     padding: 30px;
     border-radius: 15px;
     margin-bottom: 20px;
 '>
-    <h1 style='color:white; margin:0;'>Universidad Católica de Cuyo</h1>
-    <h2 style='color:white; margin:5px 0;'>Secretaría de Investigación</h2>
-    <h3 style='color:#d6f2ec; margin:5px 0;'>Consejo de Investigación</h3>
+    <h1>Universidad Católica de Cuyo</h1>
+    <h2>Secretaría de Investigación</h2>
+    <h3>Consejo de Investigación</h3>
 </div>
 """, unsafe_allow_html=True)
+
+
 st.title("📘 Valorador de Informes de Avance")
 
 st.write("Subí un informe de avance (PDF o DOCX) para evaluarlo automáticamente según la rúbrica institucional.")
