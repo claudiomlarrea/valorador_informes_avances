@@ -131,7 +131,85 @@ def generate_word(scores, percent, thresholds, nombre_proyecto=""):
 # ============================
 # INTERFAZ STREAMLIT
 # ============================
+st.markdown("""
+<style>
+
+/* Fondo general */
+.stApp {
+    background-color: #E6E6E6;
+}
+
+/* Título principal */
+h1 {
+    color: #064a3f !important;
+    font-weight: 700;
+}
+
+/* Subtítulos */
+h2, h3, h4 {
+    color: #064a3f !important;
+}
+
+/* Texto */
+p, label, span {
+    color: black !important;
+}
+
+/* Caja de carga */
+[data-testid="stFileUploader"] {
+    background-color: white;
+    border-radius: 10px;
+    padding: 15px;
+}
+
+/* Botón Upload */
+[data-testid="stFileUploader"] button {
+    background-color: #064a3f !important;
+    color: white !important;
+    border-radius: 8px;
+    border: none;
+}
+
+/* Botones generales */
+.stButton button {
+    background-color: #064a3f !important;
+    color: white !important;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+}
+
+.stButton button:hover {
+    background-color: #0B6B5D !important;
+}
+
+/* Botones de descarga */
+[data-testid="stDownloadButton"] button {
+    background-color: #064a3f !important;
+    color: white !important;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+}
+
+[data-testid="stDownloadButton"] button:hover {
+    background-color: #0B6B5D !important;
+}
+
+/* Alertas */
+[data-testid="stAlert"] {
+    border-radius: 10px;
+}
+
+/* Sliders */
+[data-baseweb="slider"] {
+    color: #064a3f;
+}
+
+</style>
+""", unsafe_allow_html=True)
 st.title("📘 Valorador de Informes de Avance")
+
 st.write("Subí un informe de avance (PDF o DOCX) para evaluarlo automáticamente según la rúbrica institucional.")
 
 uploaded_file = st.file_uploader("Cargar archivo", type=["pdf", "docx"])
