@@ -230,18 +230,26 @@ p, label, span {
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<div class='header-uccuyo' style='
-    background: linear-gradient(90deg, #0b5d4b, #177e6c);
-    padding: 30px;
-    border-radius: 15px;
-    margin-bottom: 20px;
-'>
-    <h1>Universidad Católica de Cuyo</h1>
-    <h2>Secretaría de Investigación</h2>
-    <h3>Consejo de Investigación</h3>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    """
+    <div class='header-uccuyo' style='
+        background: linear-gradient(90deg, #0b5d4b, #177e6c);
+        padding: 30px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        width: 100%;
+    '>
+
+        <h1 style="margin:0;">Universidad Católica de Cuyo</h1>
+
+        <h2 style="margin-top:10px;">Secretaría de Investigación</h2>
+
+        <h3 style="margin-top:5px;">Consejo de Investigación</h3>
+
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
 st.title("📘 Valorador de Informes de Avance")
