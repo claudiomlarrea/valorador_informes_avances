@@ -239,23 +239,6 @@ st.markdown(
 unsafe_allow_html=True
 )
 
-        <h1 style="color: white; margin:0; font-size:40px; font-weight:700;">
-            Universidad Católica de Cuyo
-        </h1>
-
-        <h2 style="color: white; margin-top:10px; font-size:22px; font-weight:500;">
-            Secretaría de Investigación
-        </h2>
-
-        <h3 style="color: #d6f2ec; margin-top:5px; font-size:18px; font-weight:400;">
-            Consejo de Investigación
-        </h3>
-
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
 
 st.title("📘 Valorador de Informes de Avance")
 
