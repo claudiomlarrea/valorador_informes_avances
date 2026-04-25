@@ -145,6 +145,19 @@ st.markdown("""
 .header-uccuyo h3 {
     color: white !important;
 }
+.header-uccuyo h1 {
+    font-size: 40px;
+    font-weight: 700;
+}
+
+.header-uccuyo h2 {
+    font-weight: 500;
+}
+
+.header-uccuyo h3 {
+    color: #d6f2ec !important;
+    font-weight: 400;
+}
 
 /* Subtítulos */
 h2, h3, h4 {
