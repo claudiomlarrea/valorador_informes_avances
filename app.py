@@ -168,6 +168,13 @@ h2, h3, h4 {
 p, label, span {
     color: black !important;
 }
+.header-uccuyo h1,
+.header-uccuyo h2,
+.header-uccuyo h3,
+.header-uccuyo p,
+.header-uccuyo span {
+    color: white !important;
+}
 
 /* Caja de carga */
 [data-testid="stFileUploader"] {
