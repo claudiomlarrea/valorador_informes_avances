@@ -165,7 +165,7 @@ h2, h3, h4 {
 }
 
 /* Texto */
-p, label, span:not(button span) {
+p, label {
     color: black !important;
 }
 .header-uccuyo h1,
