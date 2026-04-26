@@ -227,6 +227,12 @@ p, label, span:not(button span) {
     color: #064a3f;
 }
 
+/* 🔥 FORZAR TEXTO BLANCO EN BOTONES */
+.stButton button span,
+[data-testid="stDownloadButton"] button span {
+    color: white !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
