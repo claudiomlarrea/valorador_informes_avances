@@ -232,7 +232,12 @@ p, label {
 [data-testid="stDownloadButton"] button span {
     color: white !important;
 }
-
+/* 🔥 CORREGIR COLOR DE TÍTULOS FUERA DEL HEADER */
+.stApp h1,
+.stApp h2,
+.stApp h3 {
+    color: #064a3f !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
