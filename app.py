@@ -238,6 +238,17 @@ p, label {
 .stApp h3 {
     color: #064a3f !important;
 }
+
+/* 🔥 SOLUCIÓN FINAL BOTONES (NO FALLA) */
+.stButton button,
+.stButton button * {
+    color: white !important;
+}
+
+[data-testid="stDownloadButton"] button,
+[data-testid="stDownloadButton"] button * {
+    color: white !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
