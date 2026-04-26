@@ -249,11 +249,12 @@ p, label {
 [data-testid="stDownloadButton"] button * {
     color: white !important;
 }
-/* Mejora visual upload */
-[data-testid="stFileUploader"] button {
-    background-color: #064a3f !important;
+/* 🔥 SOLUCIÓN DEFINITIVA UPLOAD */
+[data-testid="stFileUploader"] button,
+[data-testid="stFileUploader"] button span,
+[data-testid="stFileUploader"] button div,
+[data-testid="stFileUploader"] button p {
     color: white !important;
-    font-weight: 600;
 }
 </style>
 """, unsafe_allow_html=True)
