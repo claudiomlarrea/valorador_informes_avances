@@ -4,6 +4,7 @@ import numpy as np
 import pdfplumber
 import yaml
 import io
+import base64
 from docx import Document
 from docx.shared import Pt
 from datetime import datetime
@@ -30,9 +31,18 @@ def _resolve_escudo_path() -> Path | None:
     return None
 
 
-def _escudo_display_source() -> str:
+def _escudo_src_for_inline_html() -> str:
+    """Para <img> dentro del mismo bloque verde (data URL local o raw en Cloud)."""
     p = _resolve_escudo_path()
-    return str(p) if p is not None else _ESCUDO_REMOTE_URL
+    if p is not None:
+        ext = p.suffix.lower()
+        mime = (
+            "image/jpeg"
+            if ext in (".jpg", ".jpeg")
+            else "image/png"
+        )
+        return f"data:{mime};base64,{base64.standard_b64encode(p.read_bytes()).decode('ascii')}"
+    return _ESCUDO_REMOTE_URL
 
 
 st.set_page_config(layout="wide")
@@ -207,15 +217,35 @@ section[data-testid="stSidebar"] {
     color: rgba(255, 255, 255, 0.92);
 }
 
-.ucc-banner {
+/* Mismo bloque verde institucional que la app de prácticos (escudo + texto) */
+.ucc-inst-header {
     background: var(--ucc-green);
-    border-radius: 12px;
-    padding: 1.35rem 1.65rem;
+    border-radius: 14px;
+    padding: 1.25rem 1.65rem;
+    margin-bottom: 1.35rem;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 1.35rem;
+    flex-wrap: wrap;
+    box-sizing: border-box;
+}
+.ucc-inst-escudo {
+    width: 112px;
+    max-width: 28vw;
+    height: auto;
+    flex-shrink: 0;
+    display: block;
+    object-fit: contain;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+}
+.ucc-inst-banner-text {
+    flex: 1 1 240px;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    box-sizing: border-box;
-    min-height: 120px;
 }
 .header-uccuyo h1.ucc-banner-heading,
 .header-uccuyo h2.ucc-banner-heading,
@@ -239,22 +269,6 @@ section[data-testid="stSidebar"] {
     font-size: clamp(0.85rem, 1.4vw, 1rem);
     font-weight: 400;
     color: rgba(255, 255, 255, 0.92) !important;
-}
-
-.block-container > div:first-child div[data-testid="stHorizontalBlock"] {
-    margin-bottom: 1.35rem;
-    align-items: stretch;
-}
-.block-container > div:first-child div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-.block-container > div:first-child div[data-testid="stHorizontalBlock"] img {
-    border: 4px solid var(--ucc-green);
-    border-radius: 10px;
-    background: #fff;
-    display: block;
 }
 
 h1:not(.ucc-banner-heading):not(.uc-card-main-title),
@@ -386,18 +400,17 @@ div[data-testid="stAlert"] {
     unsafe_allow_html=True,
 )
 
-_banner_html = """<div class="ucc-banner header-uccuyo">
+_inst_header_html = f"""
+<div class="ucc-inst-header header-uccuyo">
+<img class="ucc-inst-escudo" src="{_escudo_src_for_inline_html()}" alt="Universidad Católica de Cuyo" />
+<div class="ucc-inst-banner-text">
 <h1 class="ucc-banner-heading">Universidad Católica de Cuyo</h1>
 <h2 class="ucc-banner-heading">Secretaría de Investigación</h2>
 <h3 class="ucc-banner-heading">Consejo de Investigación</h3>
-</div>"""
-
-_brand_logo_col, _brand_banner_col = st.columns([1, 6], gap="medium")
-with _brand_logo_col:
-    st.image(_escudo_display_source(), width=118, use_container_width=False)
-with _brand_banner_col:
-    st.markdown(_banner_html, unsafe_allow_html=True)
-
+</div>
+</div>
+"""
+st.markdown(_inst_header_html, unsafe_allow_html=True)
 
 st.markdown(
     """
