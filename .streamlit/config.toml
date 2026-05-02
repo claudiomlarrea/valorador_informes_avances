@@ -1,6 +1,16 @@
 [ui]
 hideSidebarNav = true
-hideTopBar = true
+# hideTopBar = true suele romper el layout en Cloud (banda oscura tapando la cabecera).
+hideTopBar = false
 
 [client]
 toolbarMode = "minimal"
+
+[theme]
+base = "light"
+primaryColor = "#00664d"
+backgroundColor = "#f8f9fa"
+# Controles tipo select/input oscuros como el sistema de prácticos
+secondaryBackgroundColor = "#2f3640"
+textColor = "#262730"
+font = "sans serif"

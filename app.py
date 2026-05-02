@@ -168,14 +168,34 @@ st.markdown(
     --ucc-page-bg: #f8f9fa;
     --ucc-sidebar-bg: #262730;
     --ucc-text: #262730;
+    --ucc-heading-card: #2c3838;
+    --ucc-lead-muted: #5f6b6f;
 }
 
 .stApp {
     background-color: var(--ucc-page-bg);
 }
 
+/* Chrome superior de Streamlit: evitar banda oscura y solape con marca UCCuyo */
+header[data-testid="stHeader"] {
+    background: var(--ucc-page-bg) !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+div[data-testid="stDecoration"] {
+    height: 3px !important;
+    margin-top: env(safe-area-inset-top, 0);
+    background: linear-gradient(
+        90deg,
+        var(--ucc-green-dark) 0%,
+        var(--ucc-green) 50%,
+        var(--ucc-green-dark) 100%
+    ) !important;
+}
+
 .block-container {
-    padding-top: 1.25rem;
+    padding-top: 2rem !important;
+    padding-left: calc(1rem + env(safe-area-inset-left, 0px)) !important;
+    padding-right: calc(1rem + env(safe-area-inset-right, 0px)) !important;
 }
 
 section[data-testid="stSidebar"] {
@@ -237,22 +257,59 @@ section[data-testid="stSidebar"] {
     display: block;
 }
 
-h1:not(.ucc-banner-heading),
+h1:not(.ucc-banner-heading):not(.uc-card-main-title),
 h2:not(.ucc-banner-heading),
 h3:not(.ucc-banner-heading),
 h4 {
     color: var(--ucc-green-dark) !important;
 }
-p,
+
+/* Tarjeta intro (misma línea visual que otros sistemas institucionales Streamlit) */
+.ucc-intro-card {
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 1.75rem 2rem;
+    margin-bottom: 1.65rem;
+    box-shadow:
+        0 8px 28px rgba(0, 0, 0, 0.07),
+        0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.ucc-intro-card h1.uc-card-main-title {
+    color: var(--ucc-heading-card) !important;
+    margin: 0 0 0.75rem 0 !important;
+    font-size: clamp(1.3rem, 2.8vw, 1.85rem);
+    font-weight: 700;
+    line-height: 1.25;
+    font-family: "Source Sans Pro", ui-sans-serif, system-ui, sans-serif;
+}
+.ucc-intro-card p.uc-card-lead {
+    color: var(--ucc-lead-muted) !important;
+    margin: 0 !important;
+    line-height: 1.6;
+    font-size: 1.02rem;
+}
+
+p:not(.ucc-banner-heading):not(.uc-card-lead),
 label {
     color: var(--ucc-text) !important;
 }
 
+/* Controles densos tipo app de prácticos */
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input {
+    border-radius: 12px !important;
+    border-width: 0 !important;
+}
+[data-baseweb="select"] > div:first-child {
+    border-radius: 12px !important;
+}
+
 [data-testid="stFileUploader"] {
-    background-color: #ffffff;
-    border-radius: 10px;
-    padding: 15px;
-    border: 1px solid rgba(0, 102, 77, 0.2);
+    background: linear-gradient(#fcfdfd, #f4f6f7) !important;
+    border-radius: 14px !important;
+    padding: 1.15rem 1.25rem !important;
+    border: 2px dashed rgba(0, 82, 62, 0.28) !important;
+    box-sizing: border-box;
 }
 [data-testid="stFileUploader"] button {
     background-color: var(--ucc-green) !important;
@@ -342,9 +399,15 @@ with _brand_banner_col:
     st.markdown(_banner_html, unsafe_allow_html=True)
 
 
-st.title("📘 Valorador de Informes de Avance")
-
-st.write("Subí un informe de avance (PDF o DOCX) para evaluarlo automáticamente según la rúbrica institucional.")
+st.markdown(
+    """
+<div class="ucc-intro-card">
+<h1 class="uc-card-main-title">Valorador de Informes de Avance</h1>
+<p class="uc-card-lead">Subí un informe de avance (PDF o DOCX) para evaluarlo automáticamente según la rúbrica institucional.</p>
+</div>
+""",
+    unsafe_allow_html=True,
+)
 
 uploaded_file = st.file_uploader("Cargar archivo", type=["pdf", "docx"])
 
