@@ -8,6 +8,33 @@ from docx import Document
 from docx.shared import Pt
 from datetime import datetime
 from openpyxl import Workbook
+from pathlib import Path
+
+_APP_DIR = Path(__file__).resolve().parent
+
+# Mismo PNG en `assets/` (push a main). Fallback por URL cuando el archivo aún no está en el deploy.
+_ESCUDO_REMOTE_URL = (
+    "https://raw.githubusercontent.com/claudiomlarrea/valorador_informes_avances/"
+    "main/assets/escudo_uccuyo.png"
+)
+
+
+def _resolve_escudo_path() -> Path | None:
+    assets = _APP_DIR / "assets"
+    if not assets.is_dir():
+        return None
+    for name in ("escudo_uccuyo.png", "escudo_uccuyo.jpg", "escudo_uccuyo.jpeg"):
+        p = assets / name
+        if p.is_file():
+            return p
+    return None
+
+
+def _escudo_display_source() -> str:
+    p = _resolve_escudo_path()
+    return str(p) if p is not None else _ESCUDO_REMOTE_URL
+
+
 st.set_page_config(layout="wide")
 # ============================
 # CONFIGURACIÓN
@@ -131,142 +158,188 @@ def generate_word(scores, percent, thresholds, nombre_proyecto=""):
 # ============================
 # INTERFAZ STREAMLIT
 # ============================
-st.markdown("""
+st.markdown(
+    """
 <style>
+:root {
+    --ucc-green: #00664d;
+    --ucc-green-dark: #00523e;
+    --ucc-accent: #28a745;
+    --ucc-page-bg: #f8f9fa;
+    --ucc-sidebar-bg: #262730;
+    --ucc-text: #262730;
+}
 
-/* Fondo general */
 .stApp {
-    background-color: #E6E6E6;
+    background-color: var(--ucc-page-bg);
 }
 
-/* Título principal */
-.header-uccuyo h1,
-.header-uccuyo h2,
-.header-uccuyo h3 {
-    color: white !important;
+.block-container {
+    padding-top: 1.25rem;
 }
-.header-uccuyo h1 {
-    font-size: 40px;
+
+section[data-testid="stSidebar"] {
+    background-color: var(--ucc-sidebar-bg);
+}
+[data-testid="stSidebar"] [data-testid="stMarkdown"],
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] label {
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.ucc-banner {
+    background: var(--ucc-green);
+    border-radius: 12px;
+    padding: 1.35rem 1.65rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: 120px;
+}
+.header-uccuyo h1.ucc-banner-heading,
+.header-uccuyo h2.ucc-banner-heading,
+.header-uccuyo h3.ucc-banner-heading {
+    color: #ffffff !important;
+    margin: 0;
+    line-height: 1.2;
+    font-family: "Source Sans Pro", ui-sans-serif, system-ui, sans-serif;
+}
+.header-uccuyo h1.ucc-banner-heading {
+    font-size: clamp(1.35rem, 2.8vw, 1.95rem);
     font-weight: 700;
 }
-
-.header-uccuyo h2 {
+.header-uccuyo h2.ucc-banner-heading {
+    margin-top: 0.55rem !important;
+    font-size: clamp(1rem, 2vw, 1.25rem);
     font-weight: 500;
 }
-
-.header-uccuyo h3 {
-    color: #d6f2ec !important;
+.header-uccuyo h3.ucc-banner-heading {
+    margin-top: 0.35rem !important;
+    font-size: clamp(0.85rem, 1.4vw, 1rem);
     font-weight: 400;
+    color: rgba(255, 255, 255, 0.92) !important;
 }
 
-/* Subtítulos */
-h2, h3, h4 {
-    color: #064a3f !important;
+.block-container > div:first-child div[data-testid="stHorizontalBlock"] {
+    margin-bottom: 1.35rem;
+    align-items: stretch;
+}
+.block-container > div:first-child div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.block-container > div:first-child div[data-testid="stHorizontalBlock"] img {
+    border: 4px solid var(--ucc-green);
+    border-radius: 10px;
+    background: #fff;
+    display: block;
 }
 
-/* Texto */
-p, label {
-    color: black !important;
+h1:not(.ucc-banner-heading),
+h2:not(.ucc-banner-heading),
+h3:not(.ucc-banner-heading),
+h4 {
+    color: var(--ucc-green-dark) !important;
 }
-.header-uccuyo h1,
-.header-uccuyo h2,
-.header-uccuyo h3,
-.header-uccuyo p,
-.header-uccuyo span {
-    color: white !important;
+p,
+label {
+    color: var(--ucc-text) !important;
 }
 
-/* Caja de carga */
 [data-testid="stFileUploader"] {
-    background-color: white;
+    background-color: #ffffff;
     border-radius: 10px;
     padding: 15px;
+    border: 1px solid rgba(0, 102, 77, 0.2);
 }
-
-/* Botón Upload */
 [data-testid="stFileUploader"] button {
-    background-color: #064a3f !important;
+    background-color: var(--ucc-green) !important;
     color: white !important;
     border-radius: 8px;
     border: none;
 }
-
-/* Botones generales */
-.stButton button {
-    background-color: #064a3f !important;
+.stButton > button {
+    background-color: var(--ucc-green) !important;
     color: white !important;
     border-radius: 8px;
     border: none;
     font-weight: 600;
 }
-
-.stButton button:hover {
-    background-color: #0B6B5D !important;
+.stButton > button:hover {
+    background-color: var(--ucc-green-dark) !important;
+    border-color: transparent !important;
 }
-
-/* Botones de descarga */
 [data-testid="stDownloadButton"] button {
-    background-color: #064a3f !important;
+    background-color: var(--ucc-green) !important;
     color: white !important;
     border-radius: 8px;
     border: none;
     font-weight: 600;
 }
-
 [data-testid="stDownloadButton"] button:hover {
-    background-color: #0B6B5D !important;
+    background-color: var(--ucc-green-dark) !important;
+    border-color: transparent !important;
 }
-
-/* Alertas */
-[data-testid="stAlert"] {
+div[data-testid="stAlert"] {
     border-radius: 10px;
 }
-
-/* Sliders */
 [data-baseweb="slider"] {
-    color: #064a3f;
+    color: var(--ucc-green);
 }
-
-/* 🔥 FORZAR TEXTO BLANCO EN BOTONES */
 .stButton button span,
 [data-testid="stDownloadButton"] button span {
     color: white !important;
 }
-/* 🔥 CORREGIR COLOR DE TÍTULOS FUERA DEL HEADER */
-.stApp h1,
-.stApp h2,
-.stApp h3 {
-    color: #064a3f !important;
-}
-
-/* 🔥 SOLUCIÓN FINAL BOTONES (NO FALLA) */
-.stButton button,
-.stButton button * {
+.stButton > button,
+.stButton > button * {
     color: white !important;
 }
-
 [data-testid="stDownloadButton"] button,
 [data-testid="stDownloadButton"] button * {
     color: white !important;
 }
-/* 🔥 SOLUCIÓN DEFINITIVA UPLOAD */
-[data-testid="stFileUploader"] button,
 [data-testid="stFileUploader"] button span,
 [data-testid="stFileUploader"] button div,
 [data-testid="stFileUploader"] button p {
     color: white !important;
 }
-</style>
-""", unsafe_allow_html=True)
 
-st.markdown(
-"""<div class="header-uccuyo" style="background: linear-gradient(90deg, #0b5d4b, #177e6c); padding: 30px; border-radius: 15px; margin-bottom: 30px; width: 100%;">
-<h1 style="margin:0;">Universidad Católica de Cuyo</h1>
-<h2 style="margin-top:10px;">Secretaría de Investigación</h2>
-<h3 style="margin-top:5px;">Consejo de Investigación</h3>
-</div>""",
-unsafe_allow_html=True
+.stSlider label,
+[data-testid="stTextInput"] label,
+[data-testid="stFileUploader"] label {
+    position: relative;
+    padding-left: 1rem;
+}
+.stSlider label::before,
+[data-testid="stTextInput"] label::before,
+[data-testid="stFileUploader"] label::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.45rem;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--ucc-accent);
+}
+</style>
+""",
+    unsafe_allow_html=True,
 )
+
+_banner_html = """<div class="ucc-banner header-uccuyo">
+<h1 class="ucc-banner-heading">Universidad Católica de Cuyo</h1>
+<h2 class="ucc-banner-heading">Secretaría de Investigación</h2>
+<h3 class="ucc-banner-heading">Consejo de Investigación</h3>
+</div>"""
+
+_brand_logo_col, _brand_banner_col = st.columns([1, 6], gap="medium")
+with _brand_logo_col:
+    st.image(_escudo_display_source(), width=118, use_container_width=False)
+with _brand_banner_col:
+    st.markdown(_banner_html, unsafe_allow_html=True)
 
 
 st.title("📘 Valorador de Informes de Avance")
