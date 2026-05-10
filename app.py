@@ -334,13 +334,17 @@ label {
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
     padding: 0.85rem 1rem !important;
 }
-[data-testid="stFileUploaderDropzone"] label,
 [data-testid="stFileUploaderDropzone"] span,
 [data-testid="stFileUploaderDropzone"] p,
 [data-testid="stFileUploaderDropzone"] small,
 [data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] p,
 [data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] span {
     color: rgba(255, 255, 255, 0.92) !important;
+}
+
+/* label arriba (Cargar archivo) */
+[data-testid="stFileUploader"] > label {
+    color: var(--ucc-text) !important;
 }
 
 /*
