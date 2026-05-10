@@ -367,10 +367,11 @@ div[data-testid="stAlert"] {
 [data-testid="stDownloadButton"] button * {
     color: white !important;
 }
-[data-testid="stFileUploader"] button span,
-[data-testid="stFileUploader"] button div,
-[data-testid="stFileUploader"] button p {
+.stButton > button,
+.stButton > button * {
     color: white !important;
+    background-color: var(--ucc-green) !important;
+    border: none !important;
 }
 
 .stSlider label,
