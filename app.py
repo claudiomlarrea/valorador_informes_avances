@@ -431,7 +431,7 @@ div[data-testid="stAlert"] {
     border-radius: 50%;
     background: var(--ucc-accent);
 }
-[data-testid="stFileUploader"] *:not(button):not(button *) {
+[data-testid="stMarkdown"] p {
     color: var(--ucc-text) !important;
 }
 </style>
