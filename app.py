@@ -342,11 +342,6 @@ label {
     color: rgba(255, 255, 255, 0.92) !important;
 }
 
-/* label arriba (Cargar archivo) */
-[data-testid="stFileUploader"] > label {
-    color: var(--ucc-text) !important;
-}
-
 /*
  * Streamlit ≥1.37: los botones son [data-testid="stBaseButton-*"].
  * El tema puede dejar texto oscuro encima del verde que forzamos por CSS.
