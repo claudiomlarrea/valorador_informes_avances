@@ -331,7 +331,8 @@ label {
     border-radius: 8px;
     border: none;
 }
-.stButton > button {
+.stButton > button,
+.stButton > button * {
     background-color: var(--ucc-green) !important;
     color: white !important;
     border-radius: 8px;
