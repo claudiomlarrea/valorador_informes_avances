@@ -436,6 +436,9 @@ div[data-testid="stAlert"] {
 [data-testid="stFileUploaderDropzone"] * {
     color: rgba(255,255,255,0.92) !important;
 }
+[data-testid="stMarkdownContainer"] p {
+    color: var(--ucc-text) !important;
+}
 </style>
 """,
     unsafe_allow_html=True,
