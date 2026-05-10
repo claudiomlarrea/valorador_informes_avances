@@ -431,7 +431,7 @@ div[data-testid="stAlert"] {
     border-radius: 50%;
     background: var(--ucc-accent);
 }
-section[data-testid="stFileUploader"] label {
+[data-testid="stFileUploader"] *:not(button):not(button *) {
     color: var(--ucc-text) !important;
 }
 </style>
