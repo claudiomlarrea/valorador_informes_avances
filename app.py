@@ -431,7 +431,7 @@ div[data-testid="stAlert"] {
     border-radius: 50%;
     background: var(--ucc-accent);
 }
-[data-testid="stMarkdown"] p {
+[data-testid="stFileUploader"] * {
     color: var(--ucc-text) !important;
 }
 </style>
