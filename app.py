@@ -175,7 +175,7 @@ st.markdown(
     --ucc-green: #00664d;
     --ucc-green-dark: #00523e;
     --ucc-accent: #28a745;
-    --ucc-page-bg: #f8f9fa;
+    --ucc-page-bg: #E6E6E6;
     --ucc-sidebar-bg: #262730;
     --ucc-text: #262730;
     --ucc-heading-card: #2c3838;
@@ -319,11 +319,10 @@ label {
 }
 
 [data-testid="stFileUploader"] {
-    background: linear-gradient(#fcfdfd, #f4f6f7) !important;
-    border-radius: 14px !important;
-    padding: 1.15rem 1.25rem !important;
-    border: 2px dashed rgba(0, 82, 62, 0.28) !important;
-    box-sizing: border-box;
+    background-color: white !important;
+    border-radius: 10px !important;
+    padding: 15px !important;
+    border: 1px dashed rgba(0, 102, 77, 0.3) !important;
 }
 [data-testid="stFileUploader"] button {
     background-color: var(--ucc-green) !important;
@@ -331,13 +330,8 @@ label {
     border-radius: 8px;
     border: none;
 }
-.stButton > button,
-.stButton > button * {
-    background-color: var(--ucc-green) !important;
+.stButton button span {
     color: white !important;
-    border-radius: 8px;
-    border: none;
-    font-weight: 600;
 }
 .stButton > button:hover {
     background-color: var(--ucc-green-dark) !important;
