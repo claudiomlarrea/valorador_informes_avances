@@ -10,7 +10,8 @@ toolbarMode = "minimal"
 base = "light"
 primaryColor = "#00664d"
 backgroundColor = "#f8f9fa"
-# Controles tipo select/input oscuros como el sistema de prácticos
-secondaryBackgroundColor = "#2f3640"
+# Fondo claro: un secondary oscuro hace que Streamlit use labels en color claro en widgets
+# aunque la página sea clara (p. ej. leyenda del file_uploader ilegible).
+secondaryBackgroundColor = "#ffffff"
 textColor = "#262730"
 font = "sans serif"

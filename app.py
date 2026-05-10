@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import pdfplumber
 import yaml
 import io
@@ -49,37 +48,77 @@ st.set_page_config(layout="wide")
 # ============================
 # CONFIGURACIÓN
 # ============================
-with open("rubric_config.yaml", "r", encoding="utf-8") as f:
+with open(_APP_DIR / "rubric_config.yaml", "r", encoding="utf-8") as f:
     config = yaml.safe_load(f)
 
 weights = config["weights"]
 thresholds = config["thresholds"]
 keywords = config["keywords"]
+labels = config.get("labels") or {}
+
+
+def criterion_label(key: str) -> str:
+    """Nombre para UI y exportación (Anexo V / instructivo)."""
+    return labels.get(key, key.replace("_", " ").title())
 
 # ============================
 # FUNCIONES
 # ============================
+def _docx_paragraphs_and_tables(doc: Document) -> str:
+    """Incluye tablas (plantilla Anexo II suele tener datos en celdas)."""
+    parts: list[str] = []
+    for p in doc.paragraphs:
+        t = (p.text or "").strip()
+        if t:
+            parts.append(p.text)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                c = (cell.text or "").strip()
+                if c:
+                    parts.append(c)
+    return "\n".join(parts)
+
+
 def extract_text(file):
-    """Extrae texto desde PDF o DOCX"""
+    """Extrae texto desde PDF o DOCX."""
     if file.name.endswith(".pdf"):
         text = ""
         with pdfplumber.open(file) as pdf:
             for page in pdf.pages:
                 text += (page.extract_text() or "") + "\n"
         return text
-    elif file.name.endswith(".docx"):
+    if file.name.endswith(".docx"):
         doc = Document(file)
-        return "\n".join([p.text for p in doc.paragraphs])
-    else:
-        return ""
+        return _docx_paragraphs_and_tables(doc)
+    return ""
 
 def auto_score(text, keywords_dict):
-    """Calcula puntajes automáticos según palabras clave"""
-    scores = {}
+    """
+    Puntaje automático 0–4 por criterio según cobertura de indicios normativos
+    (listas `keywords` en rubric_config.yaml). Mapea la proporción de indicios
+    hallados en el texto a la escala 0–4 del Anexo V.
+    """
     text_low = (text or "").lower()
+    scores: dict[str, int] = {}
     for section, keys in keywords_dict.items():
-        found = sum((k or "").lower() in text_low for k in keys)
-        scores[section] = min(4, found)
+        keylist = [(k or "").strip() for k in keys if (k or "").strip()]
+        if not keylist:
+            scores[section] = 0
+            continue
+        hits = sum(1 for k in keylist if k.lower() in text_low)
+        ratio = hits / len(keylist)
+        # Umbrales de cobertura → escala cualitativa 0–4
+        if ratio >= 0.45:
+            scores[section] = 4
+        elif ratio >= 0.30:
+            scores[section] = 3
+        elif ratio >= 0.15:
+            scores[section] = 2
+        elif ratio > 0:
+            scores[section] = 1
+        else:
+            scores[section] = 0
     return scores
 
 def weighted_score(scores, weights):
@@ -89,14 +128,15 @@ def weighted_score(scores, weights):
     percent = (total / max_total) * 100 if max_total > 0 else 0.0
     return percent
 
-def generate_excel(scores, percent, thresholds):
-    """Genera archivo Excel con resultados"""
+def generate_excel(scores, percent, thresholds, label_fn=None):
+    """Genera archivo Excel con resultados."""
+    label_fn = label_fn or (lambda k: str(k))
     wb = Workbook()
     ws = wb.active
     ws.title = "Resultados"
     ws.append(["Criterio", "Puntaje (0–4)"])
     for k, v in scores.items():
-        ws.append([k, v])
+        ws.append([label_fn(k), v])
     ws.append([])
     ws.append(["Puntaje total (%)", round(percent, 2)])
     if percent >= thresholds["aprobado"]:
@@ -111,8 +151,9 @@ def generate_excel(scores, percent, thresholds):
     output.seek(0)
     return output
 
-def generate_word(scores, percent, thresholds, nombre_proyecto=""):
-    """Genera dictamen Word incluyendo el nombre del proyecto"""
+def generate_word(scores, percent, thresholds, nombre_proyecto="", label_fn=None):
+    """Genera dictamen Word incluyendo el nombre del proyecto."""
+    label_fn = label_fn or (lambda k: str(k))
     doc = Document()
     style = doc.styles["Normal"]
     style.font.name = "Arial"
@@ -137,7 +178,7 @@ def generate_word(scores, percent, thresholds, nombre_proyecto=""):
     hdr[1].text = "Puntaje (0–4)"
     for k, v in scores.items():
         row = table.add_row().cells
-        row[0].text = k.replace("_", " ").capitalize()
+        row[0].text = label_fn(k)
         row[1].text = str(v)
 
     percent_text = f"\nCumplimiento: {round(percent, 2)}%"
@@ -334,13 +375,27 @@ label {
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
     padding: 0.85rem 1rem !important;
 }
-[data-testid="stFileUploaderDropzone"] label,
-[data-testid="stFileUploaderDropzone"] span,
-[data-testid="stFileUploaderDropzone"] p,
-[data-testid="stFileUploaderDropzone"] small,
-[data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] p,
-[data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] span {
+/*
+ * Solo el área oscura del dropzone debe ir en texto claro.
+ * NO usar [data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] p:
+ * ahí suele estar la etiqueta del widget sobre el fondo gris → quedaba ilegible.
+ */
+/*
+ * Texto claro sólo en la franja oscura (la leyenda nativa del widget va aparte, en negro abajo).
+ */
+/* No usar "p" aquí: Streamlit puede colocar el markdown de la leyenda dentro del uploader y
+   section Dropzone p { blanco } ganaba a .ucci-upload-caption (texto ilegible). */
+[data-testid="stFileUploader"] section[data-testid="stFileUploaderDropzone"] span,
+[data-testid="stFileUploader"] section[data-testid="stFileUploaderDropzone"] small {
     color: rgba(255, 255, 255, 0.92) !important;
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.92) !important;
+}
+
+[data-testid="stFileUploader"] label,
+[data-testid="stFileUploader"] [data-testid="stWidgetLabel"],
+[data-testid="stFileUploader"] [data-testid="stWidgetLabel"] * {
+    color: #111111 !important;
+    -webkit-text-fill-color: #111111 !important;
 }
 
 /*
@@ -413,15 +468,13 @@ div[data-testid="stAlert"] {
 
 .stSlider label,
 [data-testid="stTextInput"] label,
-[data-testid="stTextArea"] label,
-[data-testid="stFileUploader"] label {
+[data-testid="stTextArea"] label {
     position: relative;
     padding-left: 1rem;
 }
 .stSlider label::before,
 [data-testid="stTextInput"] label::before,
-[data-testid="stTextArea"] label::before,
-[data-testid="stFileUploader"] label::before {
+[data-testid="stTextArea"] label::before {
     content: "";
     position: absolute;
     left: 0;
@@ -467,7 +520,14 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-uploaded_file = st.file_uploader("Cargar archivo", type=["pdf", "docx"])
+# collapsed: quita la etiqueta nativa del widget (hidden a veces deja texto “fantasma” ilegible).
+st.info("**Cargar archivo** — PDF o DOCX (hasta 200 MB por archivo). Usá el recuadro oscuro abajo.")
+uploaded_file = st.file_uploader(
+    "Cargar archivo (PDF o DOCX)",
+    type=["pdf", "docx"],
+    label_visibility="collapsed",
+    key="upload_informe_avance",
+)
 
 if uploaded_file:
     text = extract_text(uploaded_file)
@@ -478,7 +538,10 @@ if uploaded_file:
     # --- Evaluación automática (referencia) ---
     st.subheader("Evaluación automática")
     auto_scores = auto_score(text, keywords)
-    df = pd.DataFrame(auto_scores.items(), columns=["Criterio", "Puntaje (0–4)"])
+    df = pd.DataFrame(
+        [(criterion_label(k), v) for k, v in auto_scores.items()],
+        columns=["Criterio", "Puntaje (0–4)"],
+    )
     st.dataframe(df, use_container_width=True)
 
     auto_percent = weighted_score(auto_scores, weights)
@@ -489,7 +552,7 @@ if uploaded_file:
     manual_scores = {}
     for k in auto_scores.keys():
         manual_scores[k] = st.slider(
-            f"{k.replace('_',' ').capitalize()}",
+            criterion_label(k),
             0,
             4,
             int(auto_scores[k]),
@@ -514,8 +577,16 @@ if uploaded_file:
     # Generar informes SIEMPRE con los valores ajustados
     if st.button("Generar informes", type="primary"):
         final_percent = adjusted_percent
-        excel_file = generate_excel(manual_scores, final_percent, thresholds)
-        word_file = generate_word(manual_scores, final_percent, thresholds, nombre_proyecto)
+        excel_file = generate_excel(
+            manual_scores, final_percent, thresholds, label_fn=criterion_label
+        )
+        word_file = generate_word(
+            manual_scores,
+            final_percent,
+            thresholds,
+            nombre_proyecto,
+            label_fn=criterion_label,
+        )
 
         st.download_button(
             "⬇️ Descargar Excel",

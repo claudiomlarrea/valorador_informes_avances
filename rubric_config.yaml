@@ -1,38 +1,202 @@
-# Configuración de rúbrica para la Calculadora de Valoración de Informes de Avance
-# Escala por ítem: 0–4  (0=No evidenciado · 1=Bajo · 2=Medio · 3=Alto · 4=Muy alto)
-# weights: ponderación porcentual (suman 100)
+# Rúbrica según Anexo V — Valorador de Informes de Avance (UCCuyo)
+# Escala por ítem: 0–4 (0=No evidenciado · 1=Bajo · 2=Medio · 3=Alto · 4=Muy alto)
+# Ponderaciones alineadas al documento institucional (suman 100 %).
+
 scale:
   min: 0
   max: 4
 
 weights:
   identificacion: 5
-  cronograma: 12
+  cronograma: 10
   objetivos: 15
-  metodologia: 15
+  metodologia: 10
   resultados: 15
-  formacion: 8
-  gestion: 8
-  dificultades: 7
-  difusion: 7
-  calidad_formal: 4
-  impacto: 4
+  formacion: 10
+  gestion: 5
+  dificultades: 5
+  difusion: 5
+  calidad_formal: 10
+  etica_normativa: 10
 
 thresholds:
   aprobado: 70
   aprobado_obs: 50
 
-# Palabras/indicios (muy básicos) por criterio para el análisis automático inicial
-# Se usa una lógica AND/OR simple. Puedes expandir en app.py
+# Nombres oficiales (Anexo V / instructivo) para tablas, sliders y exportación
+labels:
+  identificacion: "Identificación general del proyecto"
+  cronograma: "Cumplimiento del cronograma"
+  objetivos: "Grado de cumplimiento de los objetivos"
+  metodologia: "Metodología"
+  resultados: "Resultados parciales"
+  formacion: "Formación de recursos humanos"
+  gestion: "Gestión del proyecto"
+  dificultades: "Dificultades y estrategias"
+  difusion: "Difusión y transferencia parcial"
+  calidad_formal: "Calidad formal del informe"
+  etica_normativa: "Observaciones éticas y normativas"
+
+# Indicios textuales derivados del Instructivo (Anexo II) y del Anexo V.
+# El automático puntúa por *cobertura* de estos indicios en el texto extraído (ver app.py).
 keywords:
-  identificacion: ["unidad académica", "director", "equipo", "resolución", "denominación", "código"]
-  cronograma: ["cronograma", "etapa", "seman", "mes", "plan de trabajo"]
-  objetivos: ["objetivo general", "objetivos específicos", "grado de cumplimiento"]
-  metodologia: ["metodolog", "diseño", "instrumento", "muestra", "atlas.ti", "spss", "entrevista", "encuesta", "observación"]
-  resultados: ["resultados", "descriptivos", "tabla", "figura", "análisis", "estadístico", "temático"]
-  formacion: ["capacitación", "formación", "estudiante", "tesista", "becari", "recursos humanos"]
-  gestion: ["reunione", "coordinación", "bitácora", "seguimiento", "distribución de tareas"]
-  dificultades: ["dificultad", "limitación", "problema", "riesgo", "mitigación"]
-  difusion: ["congreso", "jornada", "publicación", "artículo", "ponencia", "transferencia"]
-  calidad_formal: ["bibliografía", "referencia", "formato", "plantilla", "ortografía"]
-  impacto: ["impacto", "transferencia", "aplicación", "beneficio", "política pública", "comunidad"]
+  identificacion:
+    - "unidad académica"
+    - "denominación"
+    - "título"
+    - "director"
+    - "codirector"
+    - "equipo"
+    - "resolución"
+    - "código"
+    - "período"
+    - "incorpor"
+    - "baja"
+    - "investigador"
+  cronograma:
+    - "cronograma"
+    - "etapa"
+    - "plan de trabajo"
+    - "actividades planificadas"
+    - "actividades ejecutadas"
+    - "retraso"
+    - "modificación"
+    - "evidencia"
+    - "producto parcial"
+    - "seman"
+    - "mes"
+    - "planificad"
+    - "ejecutad"
+  objetivos:
+    - "objetivo general"
+    - "objetivos específicos"
+    - "objetivos especificos"
+    - "grado de cumplimiento"
+    - "cumplimiento"
+    - "avance"
+    - "avance en el objetivo"
+    - "meta"
+  metodologia:
+    - "metodolog"
+    - "diseño"
+    - "diseño no experimental"
+    - "instrumento"
+    - "muestra"
+    - "encuesta"
+    - "entrevista"
+    - "procedimiento"
+    - "recolección"
+    - "spss"
+    - "atlas.ti"
+    - "cuestionario"
+    - "validez"
+    - "confiabilidad"
+    - "encuadre"
+  resultados:
+    - "resultados parciales"
+    - "resultado"
+    - "descriptivo"
+    - "tabla"
+    - "figura"
+    - "análisis"
+    - "analisis"
+    - "estadístic"
+    - "estadistic"
+    - "cuantitativo"
+    - "cualitativo"
+    - "interpretación"
+    - "interpretacion"
+    - "hallazgo"
+    - "indicador"
+  formacion:
+    - "formación"
+    - "formacion"
+    - "recursos humanos"
+    - "becari"
+    - "tesis"
+    - "tesista"
+    - "estudiante"
+    - "capacitación"
+    - "capacitacion"
+    - "taller"
+    - "práctica"
+    - "practica"
+    - "supervisión"
+    - "supervision"
+  gestion:
+    - "gestión"
+    - "gestion"
+    - "reunión"
+    - "reunion"
+    - "coordinación"
+    - "coordinacion"
+    - "seguimiento"
+    - "bitácora"
+    - "bitacora"
+    - "distribución de tareas"
+    - "roles"
+    - "presupuesto"
+    - "ejecut"
+    - "gasto"
+  dificultades:
+    - "dificultad"
+    - "limitación"
+    - "limitacion"
+    - "problema"
+    - "riesgo"
+    - "estrategia"
+    - "mitigación"
+    - "mitigacion"
+    - "correctiva"
+    - "imprevisto"
+    - "causa"
+    - "obstáculo"
+  difusion:
+    - "difusión"
+    - "difusion"
+    - "transferencia"
+    - "congreso"
+    - "jornada"
+    - "publicación"
+    - "publicacion"
+    - "artículo"
+    - "articulo"
+    - "ponencia"
+    - "póster"
+    - "poster"
+    - "evento científico"
+    - "divulgación"
+    - "divulgacion"
+  calidad_formal:
+    - "bibliografía"
+    - "bibliografia"
+    - "referencia"
+    - "citación"
+    - "citacion"
+    - "apa"
+    - "vancouver"
+    - "formato"
+    - "redacción"
+    - "redaccion"
+    - "estructura"
+    - "ortografía"
+    - "ortografia"
+    - "claridad"
+  etica_normativa:
+    - "ética"
+    - "etica"
+    - "consentimiento"
+    - "informado"
+    - "anonimización"
+    - "anonimizacion"
+    - "protección de datos"
+    - "proteccion de datos"
+    - "personales"
+    - "confidencialidad"
+    - "comité de ética"
+    - "comite de etica"
+    - "ordenanza"
+    - "propiedad intelectual"
+    - "declaración jurada"
+    - "declaracion jurada"
+    - "vulnerabilidad"
