@@ -310,85 +310,117 @@ label {
 
 /* Controles densos tipo app de prácticos */
 [data-testid="stTextInput"] input,
-[data-testid="stNumberInput"] input {
+[data-testid="stNumberInput"] input,
+[data-testid="stTextArea"] textarea {
     border-radius: 12px !important;
-    border-width: 0 !important;
+    border: 1px solid rgba(0, 82, 62, 0.22) !important;
+    background-color: #ffffff !important;
+    color: var(--ucc-text) !important;
+    caret-color: var(--ucc-green-dark) !important;
 }
 [data-baseweb="select"] > div:first-child {
     border-radius: 12px !important;
 }
 
+/* Carga de archivos: franja oscura + CTA verde (alineado al valorador de informes finales) */
 [data-testid="stFileUploader"] {
-    background-color: white !important;
-    border-radius: 10px !important;
-    padding: 15px !important;
-    border: 1px dashed rgba(0, 102, 77, 0.3) !important;
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 !important;
 }
+[data-testid="stFileUploader"] section[data-testid="stFileUploaderDropzone"] {
+    background-color: #1e1e1e !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    padding: 0.85rem 1rem !important;
+}
+[data-testid="stFileUploaderDropzone"] label,
+[data-testid="stFileUploaderDropzone"] span,
+[data-testid="stFileUploaderDropzone"] p,
+[data-testid="stFileUploaderDropzone"] small,
+[data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] span {
+    color: rgba(255, 255, 255, 0.92) !important;
+}
+
+/*
+ * Streamlit ≥1.37: los botones son [data-testid="stBaseButton-*"].
+ * El tema puede dejar texto oscuro encima del verde que forzamos por CSS.
+ */
+[data-testid="stBaseButton-primary"],
+[data-testid="stBaseButton-secondary"] {
+    background-color: var(--ucc-green) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+    --text-color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    font-weight: 600 !important;
+}
+[data-testid="stBaseButton-primary"]:hover,
+[data-testid="stBaseButton-secondary"]:hover {
+    background-color: var(--ucc-green-dark) !important;
+    border-color: transparent !important;
+    color: #ffffff !important;
+    --text-color: #ffffff !important;
+}
+[data-testid="stBaseButton-primary"] p,
+[data-testid="stBaseButton-primary"] span,
+[data-testid="stBaseButton-secondary"] p,
+[data-testid="stBaseButton-secondary"] span,
+[data-testid="stBaseButton-primary"] div,
+[data-testid="stBaseButton-secondary"] div {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+[data-testid="stBaseButton-primary"] svg,
+[data-testid="stBaseButton-secondary"] svg,
+[data-testid="stFileUploader"] button svg {
+    fill: #ffffff !important;
+    color: #ffffff !important;
+}
+
+/* Fallback si el DOM aún usa el botón clásico */
+.stButton > button,
+[data-testid="stDownloadButton"] button,
 [data-testid="stFileUploader"] button {
     background-color: var(--ucc-green) !important;
-    color: white !important;
-    border-radius: 8px;
-    border: none;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    border: none !important;
+    font-weight: 600 !important;
+    --text-color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
 }
-.stButton button,
-.stButton button * {
-    color: white !important;
-}
-.stButton > button:hover {
+.stButton > button:hover,
+[data-testid="stDownloadButton"] button:hover,
+[data-testid="stFileUploader"] button:hover {
     background-color: var(--ucc-green-dark) !important;
     border-color: transparent !important;
 }
-[data-testid="stDownloadButton"] button {
-    background-color: var(--ucc-green) !important;
-    color: white !important;
-    border-radius: 8px;
-    border: none;
-    font-weight: 600;
+.stButton > button *,
+[data-testid="stDownloadButton"] button *,
+[data-testid="stFileUploader"] button * {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
 }
-[data-testid="stDownloadButton"] button:hover {
-    background-color: var(--ucc-green-dark) !important;
-    border-color: transparent !important;
-}
+
 div[data-testid="stAlert"] {
     border-radius: 10px;
 }
 [data-baseweb="slider"] {
     color: var(--ucc-green);
 }
-.stButton button span,
-[data-testid="stDownloadButton"] button span {
-    color: white !important;
-}
-.stButton > button,
-.stButton > button * {
-    color: white !important;
-}
-[data-testid="stDownloadButton"] button,
-[data-testid="stDownloadButton"] button * {
-    color: white !important;
-}
-.stButton > button,
-.stButton > button * {
-    color: white !important;
-    background-color: var(--ucc-green) !important;
-    border: none !important;
-}
 
 .stSlider label,
 [data-testid="stTextInput"] label,
+[data-testid="stTextArea"] label,
 [data-testid="stFileUploader"] label {
     position: relative;
     padding-left: 1rem;
 }
-.stTextInput input,
-[data-testid="stTextInput"] input,
-input {
-    background-color: #1e1e1e !important;
-    color: #ffffff !important;
-    caret-color: #ffffff !important;
-}
 .stSlider label::before,
 [data-testid="stTextInput"] label::before,
+[data-testid="stTextArea"] label::before,
 [data-testid="stFileUploader"] label::before {
     content: "";
     position: absolute;
@@ -398,17 +430,6 @@ input {
     height: 9px;
     border-radius: 50%;
     background: var(--ucc-accent);
-}
-button[kind="secondary"],
-button[kind="secondary"] * {
-    background-color: #064a3f !important;
-    color: white !important;
-}
-button[kind="secondary"],
-button[kind="secondary"] * {
-    background-color: var(--ucc-green) !important;
-    color: white !important;
-    border: none !important;
 }
 </style>
 """,
@@ -482,7 +503,7 @@ if uploaded_file:
     nombre_proyecto = st.text_input("Nombre del proyecto (aparecerá en el Word):", "")
 
     # Generar informes SIEMPRE con los valores ajustados
-    if st.button("Generar informes"):
+    if st.button("Generar informes", type="primary"):
         final_percent = adjusted_percent
         excel_file = generate_excel(manual_scores, final_percent, thresholds)
         word_file = generate_word(manual_scores, final_percent, thresholds, nombre_proyecto)
@@ -491,11 +512,13 @@ if uploaded_file:
             "⬇️ Descargar Excel",
             excel_file,
             file_name="valoracion_informe_avance.xlsx",
+            type="primary",
         )
         st.download_button(
             "⬇️ Descargar Word",
             word_file,
             file_name="valoracion_informe_avance.docx",
+            type="primary",
         )
 
         st.success("Informe generado con los puntajes ajustados manualmente.")
