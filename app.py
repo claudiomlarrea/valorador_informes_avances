@@ -330,7 +330,8 @@ label {
     border-radius: 8px;
     border: none;
 }
-.stButton button span {
+.stButton button,
+.stButton button * {
     color: white !important;
 }
 .stButton > button:hover {
@@ -401,6 +402,12 @@ button[kind="secondary"],
 button[kind="secondary"] * {
     background-color: #064a3f !important;
     color: white !important;
+}
+button[kind="secondary"],
+button[kind="secondary"] * {
+    background-color: var(--ucc-green) !important;
+    color: white !important;
+    border: none !important;
 }
 </style>
 """,
