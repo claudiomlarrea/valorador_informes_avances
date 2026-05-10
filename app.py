@@ -383,6 +383,13 @@ div[data-testid="stAlert"] {
     position: relative;
     padding-left: 1rem;
 }
+.stTextInput input,
+[data-testid="stTextInput"] input,
+input {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
+    caret-color: #ffffff !important;
+}
 .stSlider label::before,
 [data-testid="stTextInput"] label::before,
 [data-testid="stFileUploader"] label::before {
