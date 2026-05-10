@@ -431,6 +431,9 @@ div[data-testid="stAlert"] {
     border-radius: 50%;
     background: var(--ucc-accent);
 }
+section[data-testid="stFileUploader"] label {
+    color: var(--ucc-text) !important;
+}
 </style>
 """,
     unsafe_allow_html=True,
