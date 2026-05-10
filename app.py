@@ -431,8 +431,14 @@ div[data-testid="stAlert"] {
     border-radius: 50%;
     background: var(--ucc-accent);
 }
-[data-testid="stFileUploader"] * {
+[data-testid="stFileUploader"] > div > label,
+[data-testid="stFileUploader"] > label {
     color: var(--ucc-text) !important;
+}
+
+/* mantener texto interno en blanco */
+[data-testid="stFileUploaderDropzone"] * {
+    color: rgba(255,255,255,0.92) !important;
 }
 </style>
 """,
