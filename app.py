@@ -397,6 +397,11 @@ input {
     border-radius: 50%;
     background: var(--ucc-accent);
 }
+button[kind="secondary"],
+button[kind="secondary"] * {
+    background-color: #064a3f !important;
+    color: white !important;
+}
 </style>
 """,
     unsafe_allow_html=True,
